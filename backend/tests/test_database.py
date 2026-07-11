@@ -1,11 +1,10 @@
 """Database integration tests — verify session, models, migrations."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport
+from httpx import AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.core.config import settings
 from app.main import app
 from app.shared.database import async_session_factory
 

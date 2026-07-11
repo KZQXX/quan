@@ -1,0 +1,49 @@
+# Pre-commit hooks for Pet Tracker
+# Install:  cd backend && pip install pre-commit && pre-commit install
+# Run manually:  pre-commit run --all-files
+
+repos:
+  # Basic file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^backend/migrations/
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: debug-statements
+
+  # Ruff — lightning-fast linter + formatter (replaces flake8, isort, pyupgrade)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: ["check", "--fix"]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  # Black — code formatter (backup if ruff-format not configured)
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        files: ^backend/
+
+  # Mypy — static type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        files: ^backend/
+        additional_dependencies:
+          - fastapi
+          - pydantic
+          - pydantic-settings
+          - sqlalchemy[mypy]
+          - types-aiosqlite
+        args: ["--config-file=backend/pyproject.toml"]

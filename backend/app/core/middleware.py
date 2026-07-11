@@ -3,10 +3,13 @@
 import time
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 
 from app.core.config import settings
 from app.core.errors import AppError
@@ -16,7 +19,7 @@ from app.core.logging import logger
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Inject a unique request_id into every request and log entry."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
 
         # Bind request_id to loguru context

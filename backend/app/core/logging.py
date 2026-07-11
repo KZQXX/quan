@@ -1,14 +1,16 @@
 """Structured JSON logging with loguru — no console.log equivalent."""
 
 import sys
+
 from loguru import logger
 
 from app.core.config import settings
 
 
-def _safe_request_id(record: "dict") -> str:
+def _safe_request_id(record: dict) -> str:
     """Return request_id or '-' if not yet bound (e.g., during startup)."""
-    return record["extra"].get("request_id", "-")
+    result: str = record["extra"].get("request_id", "-")
+    return result
 
 
 def setup_logging() -> None:

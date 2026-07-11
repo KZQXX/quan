@@ -1,26 +1,29 @@
 """FastAPI application entry point — Pet Tracker MVP."""
 
-import asyncio
-import signal
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-
+from fastapi import FastAPI
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.logging import logger, setup_logging
-from app.core.middleware import global_error_handler, setup_middleware
-from app.shared.database import async_session_factory, engine
-
+from app.core.logging import logger
+from app.core.logging import setup_logging
+from app.core.middleware import global_error_handler
+from app.core.middleware import setup_middleware
+from app.shared.database import async_session_factory
+from app.shared.database import engine
 
 # ─── Lifespan (startup / shutdown) ───────────────────────────────────────
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup → yield → shutdown."""
 
     # Startup
@@ -60,13 +63,13 @@ app.add_exception_handler(Exception, global_error_handler)
 
 
 @app.get("/api/health", tags=["Health"])
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Liveness probe — is the process alive?"""
     return {"status": "ok", "version": settings.app_version}
 
 
 @app.get("/api/ready", tags=["Health"])
-async def readiness_check(request: Request):
+async def readiness_check(request: Request) -> JSONResponse:
     """Readiness probe — is the app ready to serve traffic?"""
     checks: dict[str, dict[str, str]] = {
         "app": {"status": "ok"},
@@ -95,7 +98,7 @@ async def readiness_check(request: Request):
 
 
 @app.get("/", tags=["Root"])
-async def root():
+async def root() -> Response:
     return HTMLResponse(INDEX_HTML)
 
 

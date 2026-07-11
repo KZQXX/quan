@@ -1,7 +1,8 @@
 """Test configuration and health check endpoints."""
 
-from httpx import ASGITransport, AsyncClient
 import pytest
+from httpx import ASGITransport
+from httpx import AsyncClient
 
 from app.main import app
 
@@ -37,8 +38,8 @@ async def test_readiness_check(client: AsyncClient):
 async def test_root(client: AsyncClient):
     response = await client.get("/")
     assert response.status_code == 200
-    data = response.json()
-    assert data["app"] == "Pet Tracker"
+    assert "text/html" in response.headers["content-type"]
+    assert "Pet Tracker" in response.text
 
 
 @pytest.mark.asyncio
