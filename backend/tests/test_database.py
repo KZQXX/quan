@@ -27,7 +27,9 @@ async def test_tables_exist():
         names = {r[0] for r in tables.fetchall()}
         assert "users" in names
         assert "pets" in names
-        assert "alembic_version" in names
+        assert "feeding_records" in names
+        assert "excretion_records" in names
+        assert "behavior_records" in names
 
 
 @pytest.mark.asyncio

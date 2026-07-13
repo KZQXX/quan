@@ -48,7 +48,7 @@ from app.schemas import TokenResponse
 from app.schemas import UserResponse
 from app.shared.database import get_db
 
-router = APIRouter(prefix="/api", tags=["Pet Tracker"])
+router = APIRouter(prefix="/api")
 DB = Annotated[AsyncSession, Depends(get_db)]
 bearer_scheme = HTTPBearer(auto_error=False)
 RecordModel = TypeVar("RecordModel", FeedingRecord, ExcretionRecord, BehaviorRecord)
@@ -69,7 +69,7 @@ async def current_user(
 CurrentUser = Annotated[User, Depends(current_user)]
 
 
-@router.post("/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["Auth"])
 async def register(payload: RegisterRequest, db: DB) -> User:
     existing = await db.scalar(select(User).where(User.email == str(payload.email).lower()))
     if existing:
@@ -85,7 +85,7 @@ async def register(payload: RegisterRequest, db: DB) -> User:
     return user
 
 
-@router.post("/auth/login", response_model=TokenResponse)
+@router.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
 async def login(payload: LoginRequest, db: DB) -> TokenResponse:
     user = await db.scalar(select(User).where(User.email == str(payload.email).lower()))
     if user is None or not verify_password(payload.password, user.password_hash):
@@ -95,12 +95,12 @@ async def login(payload: LoginRequest, db: DB) -> TokenResponse:
     )
 
 
-@router.get("/auth/me", response_model=UserResponse)
+@router.get("/auth/me", response_model=UserResponse, tags=["Auth"])
 async def get_current_user(user: CurrentUser) -> User:
     return user
 
 
-@router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT, tags=["Auth"])
 async def change_password(payload: PasswordChangeRequest, user: CurrentUser, db: DB) -> None:
     if not verify_password(payload.current_password, user.password_hash):
         raise UnauthorizedError("Current password is incorrect")
@@ -115,14 +115,14 @@ async def owned_pet(pet_id: str, user: User, db: AsyncSession) -> Pet:
     return pet
 
 
-@router.get("/pets", response_model=list[PetResponse])
+@router.get("/pets", response_model=list[PetResponse], tags=["Pets"])
 async def list_pets(user: CurrentUser, db: DB) -> list[Pet]:
     return list(
         await db.scalars(select(Pet).where(Pet.user_id == user.id).order_by(Pet.created_at.desc()))
     )
 
 
-@router.post("/pets", response_model=PetResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/pets", response_model=PetResponse, status_code=status.HTTP_201_CREATED, tags=["Pets"])
 async def create_pet(payload: PetCreate, user: CurrentUser, db: DB) -> Pet:
     pet = Pet(user_id=user.id, **payload.model_dump())
     db.add(pet)
@@ -131,12 +131,12 @@ async def create_pet(payload: PetCreate, user: CurrentUser, db: DB) -> Pet:
     return pet
 
 
-@router.get("/pets/{pet_id}", response_model=PetResponse)
+@router.get("/pets/{pet_id}", response_model=PetResponse, tags=["Pets"])
 async def get_pet(pet_id: str, user: CurrentUser, db: DB) -> Pet:
     return await owned_pet(pet_id, user, db)
 
 
-@router.patch("/pets/{pet_id}", response_model=PetResponse)
+@router.patch("/pets/{pet_id}", response_model=PetResponse, tags=["Pets"])
 async def update_pet(pet_id: str, payload: PetUpdate, user: CurrentUser, db: DB) -> Pet:
     pet = await owned_pet(pet_id, user, db)
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -146,7 +146,7 @@ async def update_pet(pet_id: str, payload: PetUpdate, user: CurrentUser, db: DB)
     return pet
 
 
-@router.delete("/pets/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/pets/{pet_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Pets"])
 async def delete_pet(pet_id: str, user: CurrentUser, db: DB) -> None:
     pet = await owned_pet(pet_id, user, db)
     await db.delete(pet)
@@ -214,7 +214,7 @@ async def update_record(
 
 # ── Feeding Records ──────────────────────────────────────────────────────────
 
-@router.get("/pets/{pet_id}/feedings", response_model=list[FeedingRecordResponse])
+@router.get("/pets/{pet_id}/feedings", response_model=list[FeedingRecordResponse], tags=["Feedings"])
 async def list_feedings(
     pet_id: str,
     user: CurrentUser,
@@ -229,6 +229,7 @@ async def list_feedings(
     "/pets/{pet_id}/feedings",
     status_code=status.HTTP_201_CREATED,
     response_model=FeedingRecordResponse,
+    tags=["Feedings"],
 )
 async def create_feeding(
     pet_id: str, payload: FeedingCreate, user: CurrentUser, db: DB
@@ -236,19 +237,19 @@ async def create_feeding(
     return await create_record(FeedingRecord, pet_id, payload, user, db)
 
 
-@router.get("/pets/{pet_id}/feedings/{record_id}", response_model=FeedingRecordResponse)
+@router.get("/pets/{pet_id}/feedings/{record_id}", response_model=FeedingRecordResponse, tags=["Feedings"])
 async def get_feeding(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> FeedingRecord:
     return await owned_record(pet_id, record_id, user, db, FeedingRecord)
 
 
-@router.patch("/pets/{pet_id}/feedings/{record_id}", response_model=FeedingRecordResponse)
+@router.patch("/pets/{pet_id}/feedings/{record_id}", response_model=FeedingRecordResponse, tags=["Feedings"])
 async def update_feeding(
     pet_id: str, record_id: str, payload: FeedingUpdate, user: CurrentUser, db: DB
 ) -> FeedingRecord:
     return await update_record(pet_id, record_id, payload, user, db, FeedingRecord)
 
 
-@router.delete("/pets/{pet_id}/feedings/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/pets/{pet_id}/feedings/{record_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Feedings"])
 async def delete_feeding(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> None:
     record = await owned_record(pet_id, record_id, user, db, FeedingRecord)
     await db.delete(record)
@@ -257,7 +258,7 @@ async def delete_feeding(pet_id: str, record_id: str, user: CurrentUser, db: DB)
 
 # ── Excretion Records ────────────────────────────────────────────────────────
 
-@router.get("/pets/{pet_id}/excretions", response_model=list[ExcretionRecordResponse])
+@router.get("/pets/{pet_id}/excretions", response_model=list[ExcretionRecordResponse], tags=["Excretions"])
 async def list_excretions(
     pet_id: str,
     user: CurrentUser,
@@ -272,6 +273,7 @@ async def list_excretions(
     "/pets/{pet_id}/excretions",
     status_code=status.HTTP_201_CREATED,
     response_model=ExcretionRecordResponse,
+    tags=["Excretions"],
 )
 async def create_excretion(
     pet_id: str, payload: ExcretionCreate, user: CurrentUser, db: DB
@@ -279,19 +281,19 @@ async def create_excretion(
     return await create_record(ExcretionRecord, pet_id, payload, user, db)
 
 
-@router.get("/pets/{pet_id}/excretions/{record_id}", response_model=ExcretionRecordResponse)
+@router.get("/pets/{pet_id}/excretions/{record_id}", response_model=ExcretionRecordResponse, tags=["Excretions"])
 async def get_excretion(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> ExcretionRecord:
     return await owned_record(pet_id, record_id, user, db, ExcretionRecord)
 
 
-@router.patch("/pets/{pet_id}/excretions/{record_id}", response_model=ExcretionRecordResponse)
+@router.patch("/pets/{pet_id}/excretions/{record_id}", response_model=ExcretionRecordResponse, tags=["Excretions"])
 async def update_excretion(
     pet_id: str, record_id: str, payload: ExcretionUpdate, user: CurrentUser, db: DB
 ) -> ExcretionRecord:
     return await update_record(pet_id, record_id, payload, user, db, ExcretionRecord)
 
 
-@router.delete("/pets/{pet_id}/excretions/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/pets/{pet_id}/excretions/{record_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Excretions"])
 async def delete_excretion(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> None:
     record = await owned_record(pet_id, record_id, user, db, ExcretionRecord)
     await db.delete(record)
@@ -300,7 +302,7 @@ async def delete_excretion(pet_id: str, record_id: str, user: CurrentUser, db: D
 
 # ── Behavior Records ─────────────────────────────────────────────────────────
 
-@router.get("/pets/{pet_id}/behaviors", response_model=list[BehaviorRecordResponse])
+@router.get("/pets/{pet_id}/behaviors", response_model=list[BehaviorRecordResponse], tags=["Behaviors"])
 async def list_behaviors(
     pet_id: str,
     user: CurrentUser,
@@ -315,6 +317,7 @@ async def list_behaviors(
     "/pets/{pet_id}/behaviors",
     status_code=status.HTTP_201_CREATED,
     response_model=BehaviorRecordResponse,
+    tags=["Behaviors"],
 )
 async def create_behavior(
     pet_id: str, payload: BehaviorCreate, user: CurrentUser, db: DB
@@ -322,26 +325,26 @@ async def create_behavior(
     return await create_record(BehaviorRecord, pet_id, payload, user, db)
 
 
-@router.get("/pets/{pet_id}/behaviors/{record_id}", response_model=BehaviorRecordResponse)
+@router.get("/pets/{pet_id}/behaviors/{record_id}", response_model=BehaviorRecordResponse, tags=["Behaviors"])
 async def get_behavior(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> BehaviorRecord:
     return await owned_record(pet_id, record_id, user, db, BehaviorRecord)
 
 
-@router.patch("/pets/{pet_id}/behaviors/{record_id}", response_model=BehaviorRecordResponse)
+@router.patch("/pets/{pet_id}/behaviors/{record_id}", response_model=BehaviorRecordResponse, tags=["Behaviors"])
 async def update_behavior(
     pet_id: str, record_id: str, payload: BehaviorUpdate, user: CurrentUser, db: DB
 ) -> BehaviorRecord:
     return await update_record(pet_id, record_id, payload, user, db, BehaviorRecord)
 
 
-@router.delete("/pets/{pet_id}/behaviors/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/pets/{pet_id}/behaviors/{record_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Behaviors"])
 async def delete_behavior(pet_id: str, record_id: str, user: CurrentUser, db: DB) -> None:
     record = await owned_record(pet_id, record_id, user, db, BehaviorRecord)
     await db.delete(record)
     await db.commit()
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", tags=["Dashboard"])
 async def dashboard(user: CurrentUser, db: DB) -> dict[str, int]:
     pet_ids = select(Pet.id).where(Pet.user_id == user.id)
 
