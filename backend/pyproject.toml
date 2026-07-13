@@ -13,6 +13,9 @@ dependencies = [
     "alembic>=1.14.0",
     "aiosqlite>=0.20.0",
     "httpx>=0.28.0",
+    "bcrypt>=4.2.0",
+    "python-jose[cryptography]>=3.3.0",
+    "email-validator>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -57,6 +60,7 @@ ignore = [
     "E501", # line-too-long — handled by black + ruff format
     "B008", # do not perform function calls in argument defaults (FastAPI Depends)
     "RUF001", # ambiguous unicode — unavoidable in some strings
+    "UP047", # type parameter syntax obscures these SQLAlchemy generic helpers
 ]
 fixable = ["ALL"]
 unfixable = []
@@ -106,6 +110,7 @@ module = [
     "loguru.*",
     "pydantic_settings.*",
     "aiosqlite.*",
+    "jose.*",
 ]
 ignore_missing_imports = true
 

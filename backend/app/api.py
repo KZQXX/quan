@@ -1,0 +1,228 @@
+"""Authenticated REST endpoints for the Pet Tracker MVP."""
+
+from datetime import UTC
+from datetime import datetime
+from typing import Annotated
+from typing import Any
+from typing import TypeVar
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import status
+from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
+from sqlalchemy import Select
+from sqlalchemy import func
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import ConflictError
+from app.core.errors import NotFoundError
+from app.core.errors import UnauthorizedError
+from app.core.security import create_access_token
+from app.core.security import decode_access_token
+from app.core.security import hash_password
+from app.core.security import verify_password
+from app.models.pet import Pet
+from app.models.record import BehaviorRecord
+from app.models.record import ExcretionRecord
+from app.models.record import FeedingRecord
+from app.models.user import User
+from app.schemas import BehaviorCreate
+from app.schemas import ExcretionCreate
+from app.schemas import FeedingCreate
+from app.schemas import LoginRequest
+from app.schemas import PasswordChangeRequest
+from app.schemas import PetCreate
+from app.schemas import PetResponse
+from app.schemas import PetUpdate
+from app.schemas import RegisterRequest
+from app.schemas import TokenResponse
+from app.schemas import UserResponse
+from app.shared.database import get_db
+
+router = APIRouter(prefix="/api", tags=["Pet Tracker"])
+DB = Annotated[AsyncSession, Depends(get_db)]
+bearer_scheme = HTTPBearer(auto_error=False)
+RecordModel = TypeVar("RecordModel", FeedingRecord, ExcretionRecord, BehaviorRecord)
+
+
+async def current_user(
+    db: DB, credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
+) -> User:
+    if credentials is None:
+        raise UnauthorizedError()
+    user_id = decode_access_token(credentials.credentials)
+    user = await db.get(User, user_id)
+    if user is None:
+        raise UnauthorizedError("Account no longer exists")
+    return user
+
+
+CurrentUser = Annotated[User, Depends(current_user)]
+
+
+@router.post("/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(payload: RegisterRequest, db: DB) -> User:
+    existing = await db.scalar(select(User).where(User.email == str(payload.email).lower()))
+    if existing:
+        raise ConflictError("An account with this email already exists")
+    user = User(
+        email=str(payload.email).lower(),
+        password_hash=hash_password(payload.password),
+        display_name=payload.display_name.strip(),
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+async def login(payload: LoginRequest, db: DB) -> TokenResponse:
+    user = await db.scalar(select(User).where(User.email == str(payload.email).lower()))
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise UnauthorizedError("Incorrect email or password")
+    return TokenResponse(
+        access_token=create_access_token(user.id), user=UserResponse.model_validate(user)
+    )
+
+
+@router.get("/auth/me", response_model=UserResponse)
+async def get_current_user(user: CurrentUser) -> User:
+    return user
+
+
+@router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(payload: PasswordChangeRequest, user: CurrentUser, db: DB) -> None:
+    if not verify_password(payload.current_password, user.password_hash):
+        raise UnauthorizedError("Current password is incorrect")
+    user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+
+
+async def owned_pet(pet_id: str, user: User, db: AsyncSession) -> Pet:
+    pet = await db.scalar(select(Pet).where(Pet.id == pet_id, Pet.user_id == user.id))
+    if pet is None:
+        raise NotFoundError("Pet", pet_id)
+    return pet
+
+
+@router.get("/pets", response_model=list[PetResponse])
+async def list_pets(user: CurrentUser, db: DB) -> list[Pet]:
+    return list(
+        await db.scalars(select(Pet).where(Pet.user_id == user.id).order_by(Pet.created_at.desc()))
+    )
+
+
+@router.post("/pets", response_model=PetResponse, status_code=status.HTTP_201_CREATED)
+async def create_pet(payload: PetCreate, user: CurrentUser, db: DB) -> Pet:
+    pet = Pet(user_id=user.id, **payload.model_dump())
+    db.add(pet)
+    await db.commit()
+    await db.refresh(pet)
+    return pet
+
+
+@router.get("/pets/{pet_id}", response_model=PetResponse)
+async def get_pet(pet_id: str, user: CurrentUser, db: DB) -> Pet:
+    return await owned_pet(pet_id, user, db)
+
+
+@router.patch("/pets/{pet_id}", response_model=PetResponse)
+async def update_pet(pet_id: str, payload: PetUpdate, user: CurrentUser, db: DB) -> Pet:
+    pet = await owned_pet(pet_id, user, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(pet, field, value)
+    await db.commit()
+    await db.refresh(pet)
+    return pet
+
+
+@router.delete("/pets/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pet(pet_id: str, user: CurrentUser, db: DB) -> None:
+    pet = await owned_pet(pet_id, user, db)
+    await db.delete(pet)
+    await db.commit()
+
+
+async def create_record(
+    model: type[RecordModel], pet_id: str, payload: Any, user: User, db: AsyncSession
+) -> RecordModel:
+    await owned_pet(pet_id, user, db)
+    values = payload.model_dump(exclude_none=True)
+    values.setdefault("recorded_at", datetime.now(UTC))
+    record = model(pet_id=pet_id, **values)
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+async def list_records(
+    model: type[RecordModel], pet_id: str, user: User, db: AsyncSession
+) -> list[RecordModel]:
+    await owned_pet(pet_id, user, db)
+    query: Select[tuple[RecordModel]] = (
+        select(model).where(model.pet_id == pet_id).order_by(model.recorded_at.desc())
+    )
+    return list(await db.scalars(query))
+
+
+@router.get("/pets/{pet_id}/feedings", response_model=None)
+async def list_feedings(pet_id: str, user: CurrentUser, db: DB) -> list[FeedingRecord]:
+    return await list_records(FeedingRecord, pet_id, user, db)
+
+
+@router.post("/pets/{pet_id}/feedings", status_code=status.HTTP_201_CREATED, response_model=None)
+async def create_feeding(
+    pet_id: str, payload: FeedingCreate, user: CurrentUser, db: DB
+) -> FeedingRecord:
+    return await create_record(FeedingRecord, pet_id, payload, user, db)
+
+
+@router.get("/pets/{pet_id}/excretions", response_model=None)
+async def list_excretions(pet_id: str, user: CurrentUser, db: DB) -> list[ExcretionRecord]:
+    return await list_records(ExcretionRecord, pet_id, user, db)
+
+
+@router.post("/pets/{pet_id}/excretions", status_code=status.HTTP_201_CREATED, response_model=None)
+async def create_excretion(
+    pet_id: str, payload: ExcretionCreate, user: CurrentUser, db: DB
+) -> ExcretionRecord:
+    return await create_record(ExcretionRecord, pet_id, payload, user, db)
+
+
+@router.get("/pets/{pet_id}/behaviors", response_model=None)
+async def list_behaviors(pet_id: str, user: CurrentUser, db: DB) -> list[BehaviorRecord]:
+    return await list_records(BehaviorRecord, pet_id, user, db)
+
+
+@router.post("/pets/{pet_id}/behaviors", status_code=status.HTTP_201_CREATED, response_model=None)
+async def create_behavior(
+    pet_id: str, payload: BehaviorCreate, user: CurrentUser, db: DB
+) -> BehaviorRecord:
+    return await create_record(BehaviorRecord, pet_id, payload, user, db)
+
+
+@router.get("/dashboard")
+async def dashboard(user: CurrentUser, db: DB) -> dict[str, int]:
+    pet_ids = select(Pet.id).where(Pet.user_id == user.id)
+
+    async def count(model: type[RecordModel]) -> int:
+        return int(
+            await db.scalar(
+                select(func.count()).select_from(model).where(model.pet_id.in_(pet_ids))
+            )
+            or 0
+        )
+
+    return {
+        "pets": int(
+            await db.scalar(select(func.count()).select_from(Pet).where(Pet.user_id == user.id))
+            or 0
+        ),
+        "feedings": await count(FeedingRecord),
+        "excretions": await count(ExcretionRecord),
+        "behaviors": await count(BehaviorRecord),
+    }

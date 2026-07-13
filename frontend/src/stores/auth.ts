@@ -9,15 +9,18 @@ export interface User {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
+  const savedUser = localStorage.getItem('user')
+  const user = ref<User | null>(savedUser ? JSON.parse(savedUser) as User : null)
   const token = ref<string | null>(localStorage.getItem('token'))
-  const isAuthenticated = ref(false)
+  const isAuthenticated = ref(Boolean(token.value))
 
   async function login(email: string, password: string) {
     // TODO: D6 — real API call
     const response = await api.post('/auth/login', { email, password })
     token.value = response.data.access_token
+    user.value = response.data.user
     localStorage.setItem('token', token.value!)
+    localStorage.setItem('user', JSON.stringify(user.value))
     isAuthenticated.value = true
     return response.data
   }
@@ -37,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     isAuthenticated.value = false
     localStorage.removeItem('token')
+    localStorage.removeItem('user')
   }
 
   return {

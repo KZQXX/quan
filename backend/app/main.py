@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 from sqlalchemy import text
 
+from app.api import router as api_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.logging import logger
@@ -57,6 +58,7 @@ setup_middleware(app)
 # Register global error handler
 app.add_exception_handler(AppError, global_error_handler)
 app.add_exception_handler(Exception, global_error_handler)
+app.include_router(api_router)
 
 
 # ─── Health Check Endpoints ──────────────────────────────────────────────

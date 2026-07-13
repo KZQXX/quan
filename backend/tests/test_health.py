@@ -1,13 +1,14 @@
 """Test configuration and health check endpoints."""
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport
 from httpx import AsyncClient
 
 from app.main import app
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client():
     """Async HTTP test client bound to the FastAPI app."""
     transport = ASGITransport(app=app)

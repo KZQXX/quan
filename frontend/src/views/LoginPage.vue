@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
+const error = ref('')
+const auth = useAuthStore()
 
 async function handleLogin() {
   loading.value = true
-  // TODO: D6 — real API call
-  await new Promise(r => setTimeout(r, 800))
-  loading.value = false
-  router.push('/dashboard')
+  error.value = ''
+  try {
+    await auth.login(email.value, password.value)
+    router.push('/dashboard')
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || '登录失败，请检查邮箱和密码。'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -35,6 +43,7 @@ async function handleLogin() {
         </div>
 
         <form @submit.prevent="handleLogin" class="space-y-5">
+          <p v-if="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p>
           <div>
             <label class="block text-sm font-medium text-surface-700 mb-1.5">邮箱</label>
             <input v-model="email" type="email" required

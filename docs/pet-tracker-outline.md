@@ -193,3 +193,65 @@
 - [ ] 由我直接帮你在 `D:\github\P2` 起一套可运行的 MVP 脚手架
       （FastAPI + 前端雏形 + CI + 主题切换），边写边带团队
 - [ ] 建立团队规范文档与评审 checklist
+
+---
+
+## 8. 实施状态与交接记录（2026-07-13）
+
+### 已完成：可运行核心 MVP（M1 + M2 + M3 基础闭环）
+
+- M1：FastAPI、异步 SQLAlchemy、Alembic、Docker、Vue 3 + Vite + TypeScript + Tailwind、Pinia、Axios、健康检查与基础测试。
+- M2：注册、登录、JWT Bearer 鉴权、当前用户查询、修改密码；宠物按用户隔离的增删改查；前端登录/注册真实联调、Token 与用户信息持久化、Axios 自动携带 Token、路由守卫。
+- M3 基础：`FeedingRecord`、`ExcretionRecord`、`BehaviorRecord` 数据模型与数据库迁移；按宠物创建与查询三类记录；仪表盘汇总统计；前端添加宠物与三类快速打卡入口。
+- 工程质量：新增认证/宠物/记录端到端测试；后端 `pytest`、Ruff、mypy 已通过；前端生产构建已通过。
+
+### 当前已交付的主要接口
+
+- 认证：`POST /api/auth/register`、`POST /api/auth/login`、`GET /api/auth/me`、`POST /api/auth/change-password`
+- 宠物：`GET/POST /api/pets`、`GET/PATCH/DELETE /api/pets/{pet_id}`
+- 记录：`GET/POST /api/pets/{pet_id}/feedings`、`excretions`、`behaviors`
+- 统计：`GET /api/dashboard`
+
+### 尚未完成（交由后续开发）
+
+- M3 完整体验：记录编辑、删除、复制、日期范围筛选、记录详情/卡片列表、表单校验与空状态。
+- M4：提醒、通知、每日统计、趋势图、报表与 CSV 导出。
+- M5：三态主题、组件规范、响应式打磨、性能与覆盖率目标、部署文档。
+- 安全与生产化：生产环境强制配置 JWT 密钥、PostgreSQL/Redis 配置、密钥管理、速率限制、审计日志。
+
+---
+
+## 9. Workbuddy 后续开发提示词（可直接复制）
+
+```text
+你正在维护 Pet Tracker（FastAPI + SQLAlchemy async + Alembic + Vue 3/Vite/TypeScript/Tailwind/Pinia）项目。请在现有代码基础上继续实现大纲中尚未完成的 M3 收尾、M4 与 M5；不要推翻已完成的认证、宠物、记录模型和 API。
+
+先阅读 docs/pet-tracker-outline.md、backend/app/api.py、backend/app/models、backend/app/schemas.py、frontend/src/views/DashboardPage.vue、frontend/src/stores/auth.ts。当前已实现：JWT 鉴权、用户隔离的宠物 CRUD、三类记录创建/查询、仪表盘计数与前端快速打卡。
+
+严格遵循以下设计重点：
+1. 所有受保护资源必须由 current_user 限定所有权；绝不可仅通过 ID 读取、修改或删除其他用户的宠物、记录、提醒或统计数据。
+2. 后端继续保持 FastAPI 异步风格、SQLAlchemy 2.0 async、Pydantic v2 schema、Alembic 迁移。每次新增模型必须同步：模型导入、迁移、请求/响应 schema、路由、测试。
+3. 前端只通过 src/composables/api.ts 调用 API；不要在组件里拼接鉴权头。保持路由懒加载、Tailwind 设计语言、中文 UI 与移动端可用性。
+4. 先完成功能闭环与测试，再做视觉增强；不要为了演示而用假数据替代已存在的 API 数据。
+5. 记录与提醒时间一律使用带时区的 ISO 8601；前端显示本地化，后端存储/比较保持一致。列表接口支持 pet_id、起止日期、分页与稳定排序。
+6. 任何写操作必须有明确校验、合理错误信息和失败态；删除操作前端必须二次确认。密码、JWT、环境变量不可打印到日志或提交到仓库。
+
+按以下顺序实施，并在每个里程碑完成时运行测试与构建：
+A. 完成 M3：三类记录的更新/删除/复制 API 和 UI；记录中心 Tabs、宠物/日期筛选、卡片列表、空状态、加载/错误状态；补齐所有权和边界测试。
+B. 完成 M4：Reminder 与站内通知模型/API；使用 APScheduler 做可替换的调度服务；提醒 CRUD 与前端；DailyStats 按宠物和日期聚合；仪表盘真实今日统计；ECharts 的 7/30 日趋势；CSV 导出与周报基础页面。
+C. 完成 M5：浅色/深色/跟随系统三态主题（CSS 变量为唯一颜色来源）；可复用的 Button/Input/Modal/Card 规范；响应式；列表量大时的性能处理；测试覆盖率提升至至少 70%；补全 README、.env.example、Docker Compose 启动与部署说明。
+
+验收要求：
+- backend：ruff check、mypy app、pytest 均通过；新增核心流程至少覆盖成功、未认证、越权、校验失败四类场景。
+- frontend：npm run build 通过；登录后可完整完成宠物、三类记录、提醒、统计和主题切换的真实 API 流程。
+- 数据库：全新 SQLite 数据库执行 alembic upgrade head 可启动；现有迁移不可修改，只能追加新迁移。
+- 每次提交都说明新增迁移、API 契约变化、测试命令和仍未完成项。
+```
+
+## 10. 交回审查时请附带
+
+- `git diff` 或提交列表，以及功能完成项与未完成项。
+- 全量验证输出：`pytest`、`ruff check`、`mypy app`、`npm run build`。
+- 数据库迁移编号和从空数据库迁移的验证结果。
+- 至少一条真实的端到端操作说明：注册 → 新增宠物 → 三类记录 → 提醒 → 查看统计/导出。
+- 如有取舍（例如通知渠道、图表交互、分页策略），写明原因和替代方案。
