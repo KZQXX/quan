@@ -37,6 +37,10 @@ type TabKey = 'feeding' | 'excretion' | 'behavior'
 const TAB_LABELS: Record<TabKey, string> = { feeding: '进食', excretion: '排便', behavior: '行为' }
 const TAB_ENDPOINTS: Record<TabKey, string> = { feeding: 'feedings', excretion: 'excretions', behavior: 'behaviors' }
 const FOOD_TYPE_OPTIONS = ['狗粮', '猫粮', '零食', '自制', '罐头', '生骨肉', '冻干', '处方粮', '其他']
+const EXCRETION_TYPE_OPTIONS = ['正常', '腹泻', '便秘', '带血', '其他']
+const CONSISTENCY_OPTIONS = ['正常', '软便', '硬便', '水样']
+const BEHAVIOR_TYPE_OPTIONS = ['玩耍', '睡觉', '散步', '吠叫', '训练', '抓挠', '梳毛', '其他']
+const MOOD_OPTIONS = ['开心', '平静', '焦虑', '萎靡']
 
 // ── State ───────────────────────────────────────────────────────────────────
 const auth = useAuthStore()
@@ -50,11 +54,22 @@ const loading = ref(false)
 const error = ref('')
 const message = ref('')
 
-// Create form state
+// Create form state — feeding
 const newFoodType = ref('狗粮')
 const newAmount = ref<number | null>(null)
 const newNotes = ref('')
 const creating = ref(false)
+
+// Create form state — excretion
+const newExcretionType = ref('正常')
+const newConsistency = ref('')
+const newExcretionNotes = ref('')
+
+// Create form state — behavior
+const newBehaviorType = ref('玩耍')
+const newDurationMinutes = ref<number | null>(null)
+const newMood = ref('')
+const newBehaviorNotes = ref('')
 
 // Edit modal
 const editing = ref<RecordType | null>(null)
@@ -69,7 +84,6 @@ const currentEndpoint = computed(() => TAB_ENDPOINTS[activeTab.value])
 const selectedPet = computed(() => pets.value.find((p) => p.id === selectedPetId.value))
 
 const todayRecords = computed(() => {
-  if (activeTab.value !== 'feeding') return []
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today)
@@ -139,6 +153,67 @@ function quickFeedCheckin() {
   newAmount.value = 100
   newNotes.value = ''
   createFeedingRecord()
+}
+
+// ── Create excretion record ────────────────────────────────────────────────
+async function createExcretionRecord() {
+  if (!selectedPetId.value || !newExcretionType.value) return
+  creating.value = true
+  error.value = ''
+  try {
+    await api.post(`/pets/${selectedPetId.value}/excretions`, {
+      type: newExcretionType.value,
+      consistency: newConsistency.value || undefined,
+      notes: newExcretionNotes.value || undefined,
+    })
+    message.value = '已记录排便！'
+    newConsistency.value = ''
+    newExcretionNotes.value = ''
+    await loadRecords()
+  } catch (e: any) {
+    error.value = e.response?.data?.detail || '记录失败，请重试。'
+  } finally {
+    creating.value = false
+  }
+}
+
+function quickExcretionCheckin() {
+  newExcretionType.value = '正常'
+  newConsistency.value = ''
+  newExcretionNotes.value = ''
+  createExcretionRecord()
+}
+
+// ── Create behavior record ────────────────────────────────────────────────
+async function createBehaviorRecord() {
+  if (!selectedPetId.value || !newBehaviorType.value) return
+  creating.value = true
+  error.value = ''
+  try {
+    await api.post(`/pets/${selectedPetId.value}/behaviors`, {
+      behavior_type: newBehaviorType.value,
+      duration_minutes: newDurationMinutes.value,
+      mood: newMood.value || undefined,
+      notes: newBehaviorNotes.value || undefined,
+    })
+    message.value = '已记录行为！'
+    newDurationMinutes.value = null
+    newMood.value = ''
+    newBehaviorNotes.value = ''
+    await loadRecords()
+  } catch (e: any) {
+    error.value = e.response?.data?.detail || '记录失败，请重试。'
+  } finally {
+    creating.value = false
+  }
+}
+
+function quickBehaviorCheckin() {
+  newBehaviorType.value = '玩耍'
+  newDurationMinutes.value = null
+  newMood.value = '开心'
+  newBehaviorNotes.value = ''
+  createBehaviorRecord()
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────────
@@ -323,6 +398,100 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         </form>
       </section>
 
+      <!-- ── Create Excretion Form ────────────────────────────────────────── -->
+      <section v-if="activeTab === 'excretion' && selectedPetId" class="glass-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
+          <span>💩</span> 记录排便
+        </h2>
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createExcretionRecord">
+          <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
+            类型
+            <select v-model="newExcretionType" class="rounded-xl border-surface-200 text-sm">
+              <option v-for="opt in EXCRETION_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
+            性状
+            <select v-model="newConsistency" class="rounded-xl border-surface-200 text-sm">
+              <option value="">不指定</option>
+              <option v-for="opt in CONSISTENCY_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 flex-1 min-w-[150px]">
+            备注
+            <input v-model="newExcretionNotes" placeholder="可选" class="rounded-xl border-surface-200 text-sm" />
+          </label>
+          <button
+            type="submit"
+            class="btn-primary text-sm"
+            :disabled="creating || !selectedPetId"
+          >
+            <span v-if="creating" class="animate-pulse">记录中…</span>
+            <span v-else>✅ 记录</span>
+          </button>
+          <button
+            type="button"
+            class="rounded-xl px-4 py-2 text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+            :disabled="creating || !selectedPetId"
+            @click="quickExcretionCheckin"
+          >
+            ⚡ 快速打卡
+          </button>
+        </form>
+      </section>
+
+      <!-- ── Create Behavior Form ─────────────────────────────────────────── -->
+      <section v-if="activeTab === 'behavior' && selectedPetId" class="glass-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
+          <span>🐕</span> 记录行为
+        </h2>
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createBehaviorRecord">
+          <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
+            行为类型
+            <select v-model="newBehaviorType" class="rounded-xl border-surface-200 text-sm">
+              <option v-for="opt in BEHAVIOR_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 w-28">
+            时长 (分钟)
+            <input
+              v-model.number="newDurationMinutes"
+              type="number"
+              min="0"
+              placeholder="分钟数"
+              class="rounded-xl border-surface-200 text-sm"
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[100px]">
+            情绪
+            <select v-model="newMood" class="rounded-xl border-surface-200 text-sm">
+              <option value="">不指定</option>
+              <option v-for="opt in MOOD_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 flex-1 min-w-[150px]">
+            备注
+            <input v-model="newBehaviorNotes" placeholder="可选" class="rounded-xl border-surface-200 text-sm" />
+          </label>
+          <button
+            type="submit"
+            class="btn-primary text-sm"
+            :disabled="creating || !selectedPetId"
+          >
+            <span v-if="creating" class="animate-pulse">记录中…</span>
+            <span v-else>✅ 记录</span>
+          </button>
+          <button
+            type="button"
+            class="rounded-xl px-4 py-2 text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+            :disabled="creating || !selectedPetId"
+            @click="quickBehaviorCheckin"
+          >
+            ⚡ 快速打卡
+          </button>
+        </form>
+      </section>
+
       <!-- Date filters -->
       <div class="flex flex-wrap gap-3 items-end">
         <label class="flex flex-col gap-1 text-xs text-surface-500">
@@ -360,15 +529,24 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <RouterLink to="/dashboard" class="btn-primary mt-5 inline-block">前往控制面板</RouterLink>
       </div>
 
-      <!-- ── Today's Feeding (D15) ────────────────────────────────────────── -->
+      <!-- ── Today's Records (all tabs) ──────────────────────────────────── -->
       <section
-        v-if="activeTab === 'feeding' && todayRecords.length && selectedPetId"
+        v-if="todayRecords.length && selectedPetId"
         class="space-y-3"
       >
         <div class="flex items-center gap-3">
-          <h3 class="text-lg font-bold text-surface-900">📅 今日喂食</h3>
-          <span class="text-sm bg-primary-100 text-primary-700 rounded-full px-3 py-0.5 font-medium">
-            {{ todayRecords.length }} 餐
+          <h3 class="text-lg font-bold text-surface-900">
+            📅 今日{{ TAB_LABELS[activeTab] }}
+          </h3>
+          <span
+            class="text-sm rounded-full px-3 py-0.5 font-medium"
+            :class="activeTab === 'feeding'
+              ? 'bg-primary-100 text-primary-700'
+              : activeTab === 'excretion'
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-purple-100 text-purple-700'"
+          >
+            {{ todayRecords.length }} {{ activeTab === 'feeding' ? '餐' : activeTab === 'excretion' ? '次' : '条' }}
           </span>
         </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -380,7 +558,18 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
             <p class="text-xs text-surface-400 mb-2">
               {{ new Date(record.recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
             </p>
-            <p class="text-lg font-bold text-surface-900">{{ feedingDetail(record as FeedingRecord) }}</p>
+            <!-- Feeding -->
+            <template v-if="activeTab === 'feeding'">
+              <p class="text-lg font-bold text-surface-900">{{ feedingDetail(record as FeedingRecord) }}</p>
+            </template>
+            <!-- Excretion -->
+            <template v-else-if="activeTab === 'excretion'">
+              <p class="text-lg font-bold text-surface-900">{{ excretionDetail(record as ExcretionRecord) }}</p>
+            </template>
+            <!-- Behavior -->
+            <template v-else>
+              <p class="text-lg font-bold text-surface-900">{{ behaviorDetail(record as BehaviorRecord) }}</p>
+            </template>
             <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
             <div class="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
               <button class="text-xs px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors" @click="openEdit(record)">编辑</button>
@@ -456,21 +645,14 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               类型
               <select v-model="editForm.type" class="rounded-xl border-surface-200">
-                <option value="normal">正常</option>
-                <option value="diarrhea">腹泻</option>
-                <option value="constipation">便秘</option>
-                <option value="bloody">带血</option>
-                <option value="other">其他</option>
+                <option v-for="opt in EXCRETION_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </label>
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               性状
               <select v-model="editForm.consistency" class="rounded-xl border-surface-200">
                 <option value="">不指定</option>
-                <option value="normal">正常</option>
-                <option value="soft">软便</option>
-                <option value="hard">硬便</option>
-                <option value="watery">水样</option>
+                <option v-for="opt in CONSISTENCY_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </label>
           </template>
@@ -479,7 +661,9 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
           <template v-else>
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               行为类型
-              <input v-model="editForm.behavior_type" class="rounded-xl border-surface-200" />
+              <select v-model="editForm.behavior_type" class="rounded-xl border-surface-200">
+                <option v-for="opt in BEHAVIOR_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
             </label>
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               时长 (分钟)
@@ -489,10 +673,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
               情绪
               <select v-model="editForm.mood" class="rounded-xl border-surface-200">
                 <option value="">不指定</option>
-                <option value="happy">开心</option>
-                <option value="normal">平静</option>
-                <option value="anxious">焦虑</option>
-                <option value="lethargic">萎靡</option>
+                <option v-for="opt in MOOD_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
               </select>
             </label>
           </template>
