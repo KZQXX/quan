@@ -36,6 +36,7 @@ type TabKey = 'feeding' | 'excretion' | 'behavior'
 
 const TAB_LABELS: Record<TabKey, string> = { feeding: '进食', excretion: '排便', behavior: '行为' }
 const TAB_ENDPOINTS: Record<TabKey, string> = { feeding: 'feedings', excretion: 'excretions', behavior: 'behaviors' }
+const FOOD_TYPE_OPTIONS = ['狗粮', '猫粮', '零食', '自制', '罐头', '生骨肉', '冻干', '处方粮', '其他']
 
 // ── State ───────────────────────────────────────────────────────────────────
 const auth = useAuthStore()
@@ -49,6 +50,12 @@ const loading = ref(false)
 const error = ref('')
 const message = ref('')
 
+// Create form state
+const newFoodType = ref('狗粮')
+const newAmount = ref<number | null>(null)
+const newNotes = ref('')
+const creating = ref(false)
+
 // Edit modal
 const editing = ref<RecordType | null>(null)
 const editForm = ref<Record<string, any>>({})
@@ -58,6 +65,20 @@ const deleting = ref<RecordType | null>(null)
 
 const hasRecords = computed(() => records.value.length > 0)
 const currentEndpoint = computed(() => TAB_ENDPOINTS[activeTab.value])
+
+const selectedPet = computed(() => pets.value.find((p) => p.id === selectedPetId.value))
+
+const todayRecords = computed(() => {
+  if (activeTab.value !== 'feeding') return []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return records.value.filter((r) => {
+    const d = new Date(r.recorded_at)
+    return d >= today && d < tomorrow
+  })
+})
 
 // ── API helpers ─────────────────────────────────────────────────────────────
 function params() {
@@ -85,6 +106,39 @@ async function loadRecords() {
   } finally {
     loading.value = false
   }
+}
+
+// ── Create feeding record ────────────────────────────────────────────────
+async function createFeedingRecord() {
+  if (!selectedPetId.value || !newFoodType.value) return
+  creating.value = true
+  error.value = ''
+  try {
+    await api.post(`/pets/${selectedPetId.value}/feedings`, {
+      food_type: newFoodType.value,
+      amount: newAmount.value,
+      notes: newNotes.value || undefined,
+    })
+    message.value = '已记录一餐！'
+    newAmount.value = null
+    newNotes.value = ''
+    await loadRecords()
+  } catch (e: any) {
+    error.value = e.response?.data?.detail || '记录失败，请重试。'
+  } finally {
+    creating.value = false
+  }
+}
+
+function quickFeedCheckin() {
+  if (!selectedPet.value) return
+  const species = selectedPet.value.species
+  if (species === 'dog') newFoodType.value = '狗粮'
+  else if (species === 'cat') newFoodType.value = '猫粮'
+  else newFoodType.value = '零食'
+  newAmount.value = 100
+  newNotes.value = ''
+  createFeedingRecord()
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────────
@@ -224,6 +278,51 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         </button>
       </nav>
 
+      <!-- ── Create Feeding Form (D15) ────────────────────────────────────── -->
+      <section v-if="activeTab === 'feeding' && selectedPetId" class="glass-card p-6 space-y-4">
+        <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
+          <span>🍽️</span> 记录喂食
+        </h2>
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createFeedingRecord">
+          <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
+            食物类型
+            <select v-model="newFoodType" class="rounded-xl border-surface-200 text-sm">
+              <option v-for="opt in FOOD_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 w-28">
+            食量 (g)
+            <input
+              v-model.number="newAmount"
+              type="number"
+              min="0"
+              placeholder="克数"
+              class="rounded-xl border-surface-200 text-sm"
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-surface-500 flex-1 min-w-[150px]">
+            备注
+            <input v-model="newNotes" placeholder="可选" class="rounded-xl border-surface-200 text-sm" />
+          </label>
+          <button
+            type="submit"
+            class="btn-primary text-sm"
+            :disabled="creating || !selectedPetId"
+          >
+            <span v-if="creating" class="animate-pulse">记录中…</span>
+            <span v-else>✅ 记录</span>
+          </button>
+          <button
+            type="button"
+            class="rounded-xl px-4 py-2 text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+            :disabled="creating || !selectedPetId"
+            @click="quickFeedCheckin"
+          >
+            ⚡ 快速打卡
+          </button>
+        </form>
+      </section>
+
       <!-- Date filters -->
       <div class="flex flex-wrap gap-3 items-end">
         <label class="flex flex-col gap-1 text-xs text-surface-500">
@@ -260,6 +359,36 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <p class="text-sm text-surface-400 mt-1">前往控制面板添加第一条记录吧。</p>
         <RouterLink to="/dashboard" class="btn-primary mt-5 inline-block">前往控制面板</RouterLink>
       </div>
+
+      <!-- ── Today's Feeding (D15) ────────────────────────────────────────── -->
+      <section
+        v-if="activeTab === 'feeding' && todayRecords.length && selectedPetId"
+        class="space-y-3"
+      >
+        <div class="flex items-center gap-3">
+          <h3 class="text-lg font-bold text-surface-900">📅 今日喂食</h3>
+          <span class="text-sm bg-primary-100 text-primary-700 rounded-full px-3 py-0.5 font-medium">
+            {{ todayRecords.length }} 餐
+          </span>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <article
+            v-for="record in todayRecords"
+            :key="record.id"
+            class="glass-card p-5 group relative border-l-4 border-primary-400"
+          >
+            <p class="text-xs text-surface-400 mb-2">
+              {{ new Date(record.recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
+            </p>
+            <p class="text-lg font-bold text-surface-900">{{ feedingDetail(record as FeedingRecord) }}</p>
+            <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
+            <div class="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button class="text-xs px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors" @click="openEdit(record)">编辑</button>
+              <button class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors" @click="confirmDelete(record)">删除</button>
+            </div>
+          </article>
+        </div>
+      </section>
 
       <!-- Record list -->
       <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -312,7 +441,9 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
           <template v-if="activeTab === 'feeding'">
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               食物类型
-              <input v-model="editForm.food_type" class="rounded-xl border-surface-200" />
+              <select v-model="editForm.food_type" class="rounded-xl border-surface-200">
+                <option v-for="opt in FOOD_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
             </label>
             <label class="flex flex-col gap-1 text-sm text-surface-600">
               食量 (g)
