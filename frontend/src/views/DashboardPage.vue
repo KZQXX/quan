@@ -47,8 +47,8 @@ async function quickRecord() {
   if (!selectedPetId.value) return
   const endpoints = { excretion: 'excretions', behavior: 'behaviors' }
   const payload = activeTab.value === 'excretion'
-    ? { type: 'normal', consistency: 'normal' }
-    : { behavior_type: 'daily activity', mood: 'normal' }
+    ? { type: '正常', consistency: '正常' }
+    : { behavior_type: '玩耍', mood: '开心' }
   await api.post(`/pets/${selectedPetId.value}/${endpoints[activeTab.value as 'excretion' | 'behavior']}`, payload)
   message.value = activeTab.value === 'excretion' ? '已记录排便。' : '已记录行为。'
   await refresh()

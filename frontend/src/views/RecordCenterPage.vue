@@ -12,12 +12,12 @@ interface RecordItem {
   pet_id: string
   recorded_at: string
   notes: string | null
+  source: string
 }
 
 interface FeedingRecord extends RecordItem {
   food_type: string
   amount: number | null
-  source: string
 }
 
 interface ExcretionRecord extends RecordItem {
@@ -83,6 +83,53 @@ const currentEndpoint = computed(() => TAB_ENDPOINTS[activeTab.value])
 
 const selectedPet = computed(() => pets.value.find((p) => p.id === selectedPetId.value))
 
+// ── Form validation ─────────────────────────────────────────────────────────
+const formErrors = ref<Record<string, string>>({})
+
+function clearFormErrors() { formErrors.value = {} }
+
+function validateFeeding(): boolean {
+  const errs: Record<string, string> = {}
+  if (!newFoodType.value) errs.food_type = '请选择食物类型'
+  if (newAmount.value !== null && (newAmount.value <= 0 || !Number.isFinite(newAmount.value)))
+    errs.amount = '食量必须大于 0'
+  if (newAmount.value !== null && newAmount.value > 99999) errs.amount = '食量不能超过 99999g'
+  formErrors.value = errs
+  return Object.keys(errs).length === 0
+}
+
+function validateExcretion(): boolean {
+  formErrors.value = {}
+  return true
+}
+
+function validateBehavior(): boolean {
+  const errs: Record<string, string> = {}
+  if (newDurationMinutes.value !== null && (newDurationMinutes.value <= 0 || !Number.isFinite(newDurationMinutes.value)))
+    errs.duration = '时长必须大于 0'
+  if (newDurationMinutes.value !== null && newDurationMinutes.value > 1440) errs.duration = '时长不能超过 1440 分钟'
+  formErrors.value = errs
+  return Object.keys(errs).length === 0
+}
+
+// ── Card helpers ────────────────────────────────────────────────────────────
+function recordIcon(r: RecordType): string {
+  if (activeTab.value === 'feeding') {
+    const m: Record<string, string> = { '狗粮': '🦴', '猫粮': '🐟', '零食': '🍪', '自制': '🍲', '罐头': '🥫', '生骨肉': '🥩', '冻干': '🧊', '处方粮': '💊', '其他': '🍽️' }
+    return m[(r as FeedingRecord).food_type] || '🍽️'
+  }
+  if (activeTab.value === 'excretion') {
+    const m: Record<string, string> = { '正常': '✅', '腹泻': '💧', '便秘': '🪨', '带血': '🩸', '其他': '💩' }
+    return m[(r as ExcretionRecord).type] || '💩'
+  }
+  const m: Record<string, string> = { '玩耍': '🎾', '睡觉': '😴', '散步': '🚶', '吠叫': '🗣️', '训练': '🎓', '抓挠': '✋', '梳毛': '🪮', '其他': '🐕' }
+  return m[(r as BehaviorRecord).behavior_type] || '🐕'
+}
+
+function sourceBadge(source: string): string {
+  return source === 'quick_checkin' ? '⚡ 快速打卡' : '✏️ 手动记录'
+}
+
 const todayRecords = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -124,9 +171,11 @@ async function loadRecords() {
 
 // ── Create feeding record ────────────────────────────────────────────────
 async function createFeedingRecord() {
-  if (!selectedPetId.value || !newFoodType.value) return
+  if (!selectedPetId.value) return
+  if (!validateFeeding()) return
   creating.value = true
   error.value = ''
+  clearFormErrors()
   try {
     await api.post(`/pets/${selectedPetId.value}/feedings`, {
       food_type: newFoodType.value,
@@ -157,9 +206,11 @@ function quickFeedCheckin() {
 
 // ── Create excretion record ────────────────────────────────────────────────
 async function createExcretionRecord() {
-  if (!selectedPetId.value || !newExcretionType.value) return
+  if (!selectedPetId.value) return
+  if (!validateExcretion()) return
   creating.value = true
   error.value = ''
+  clearFormErrors()
   try {
     await api.post(`/pets/${selectedPetId.value}/excretions`, {
       type: newExcretionType.value,
@@ -186,9 +237,11 @@ function quickExcretionCheckin() {
 
 // ── Create behavior record ────────────────────────────────────────────────
 async function createBehaviorRecord() {
-  if (!selectedPetId.value || !newBehaviorType.value) return
+  if (!selectedPetId.value) return
+  if (!validateBehavior()) return
   creating.value = true
   error.value = ''
+  clearFormErrors()
   try {
     await api.post(`/pets/${selectedPetId.value}/behaviors`, {
       behavior_type: newBehaviorType.value,
@@ -261,6 +314,23 @@ async function executeDelete() {
     await loadRecords()
   } catch (e: any) {
     error.value = e.response?.data?.detail || '删除失败。'
+  }
+}
+
+async function copyRecord(record: RecordType) {
+  if (!selectedPetId.value) return
+  const ep = currentEndpoint.value
+  const body: Record<string, any> = {}
+  for (const [k, v] of Object.entries(record)) {
+    if (['id', 'pet_id', 'recorded_at', 'source'].includes(k)) continue
+    if (v !== null && v !== '') body[k] = v
+  }
+  try {
+    await api.post(`/pets/${selectedPetId.value}/${ep}`, body)
+    message.value = '已复制记录！'
+    await loadRecords()
+  } catch (e: any) {
+    error.value = e.response?.data?.detail || '复制失败。'
   }
 }
 
@@ -361,9 +431,10 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createFeedingRecord">
           <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
             食物类型
-            <select v-model="newFoodType" class="rounded-xl border-surface-200 text-sm">
+            <select v-model="newFoodType" class="rounded-xl border-surface-200 text-sm" :class="{ '!border-red-400': formErrors.food_type }" @change="clearFormErrors">
               <option v-for="opt in FOOD_TYPE_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
             </select>
+            <span v-if="formErrors.food_type" class="text-red-500 text-[11px]">{{ formErrors.food_type }}</span>
           </label>
           <label class="flex flex-col gap-1 text-xs text-surface-500 w-28">
             食量 (g)
@@ -373,7 +444,10 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
               min="0"
               placeholder="克数"
               class="rounded-xl border-surface-200 text-sm"
+              :class="{ '!border-red-400': formErrors.amount }"
+              @input="clearFormErrors"
             />
+            <span v-if="formErrors.amount" class="text-red-500 text-[11px]">{{ formErrors.amount }}</span>
           </label>
           <label class="flex flex-col gap-1 text-xs text-surface-500 flex-1 min-w-[150px]">
             备注
@@ -460,7 +534,10 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
               min="0"
               placeholder="分钟数"
               class="rounded-xl border-surface-200 text-sm"
+              :class="{ '!border-red-400': formErrors.duration }"
+              @input="clearFormErrors"
             />
+            <span v-if="formErrors.duration" class="text-red-500 text-[11px]">{{ formErrors.duration }}</span>
           </label>
           <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[100px]">
             情绪
@@ -521,12 +598,72 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <p class="mt-3">加载记录中…</p>
       </div>
 
-      <!-- Empty state -->
-      <div v-else-if="!hasRecords && selectedPetId" class="text-center py-16">
-        <span class="text-5xl">📋</span>
-        <p class="mt-4 text-lg text-surface-500">暂无{{ TAB_LABELS[activeTab] }}记录</p>
-        <p class="text-sm text-surface-400 mt-1">前往控制面板添加第一条记录吧。</p>
-        <RouterLink to="/dashboard" class="btn-primary mt-5 inline-block">前往控制面板</RouterLink>
+      <!-- Empty state with illustration -->
+      <div v-else-if="!hasRecords && selectedPetId" class="py-16">
+        <div class="max-w-sm mx-auto text-center space-y-5">
+          <!-- Inline SVG illustration per tab -->
+          <div class="mx-auto w-40 h-40 flex items-center justify-center">
+            <!-- Feeding empty -->
+            <svg v-if="activeTab === 'feeding'" viewBox="0 0 160 160" class="w-full h-full">
+              <defs>
+                <linearGradient id="bowlGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #3b82f6; stop-opacity:0.15"/>
+                  <stop offset="100%" style="stop-color: #6366f1; stop-opacity:0.08"/>
+                </linearGradient>
+              </defs>
+              <circle cx="80" cy="75" r="55" fill="url(#bowlGrad)" stroke="#93c5fd" stroke-width="2" stroke-dasharray="8,4"/>
+              <ellipse cx="80" cy="72" rx="38" ry="18" fill="#dbeafe" stroke="#93c5fd" stroke-width="2"/>
+              <circle cx="65" cy="65" r="4" fill="#f59e0b"/>
+              <circle cx="80" cy="60" r="3" fill="#f59e0b"/>
+              <circle cx="92" cy="63" r="3.5" fill="#f59e0b"/>
+              <circle cx="75" cy="70" r="2.5" fill="#f59e0b"/>
+              <text x="80" y="135" text-anchor="middle" font-size="11" fill="#94a3b8">碗是空的…</text>
+            </svg>
+            <!-- Excretion empty -->
+            <svg v-else-if="activeTab === 'excretion'" viewBox="0 0 160 160" class="w-full h-full">
+              <defs>
+                <linearGradient id="excreteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #f59e0b; stop-opacity:0.15"/>
+                  <stop offset="100%" style="stop-color: #f97316; stop-opacity:0.08"/>
+                </linearGradient>
+              </defs>
+              <circle cx="80" cy="75" r="55" fill="url(#excreteGrad)" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8,4"/>
+              <circle cx="80" cy="70" r="15" fill="#fef3c7" stroke="#f59e0b" stroke-width="2.5"/>
+              <circle cx="74" cy="67" r="3" fill="#f59e0b"/>
+              <circle cx="86" cy="67" r="3" fill="#f59e0b"/>
+              <ellipse cx="80" cy="74" rx="5" ry="2.5" fill="#d97706"/>
+              <text x="80" y="135" text-anchor="middle" font-size="11" fill="#94a3b8">还没记录过…</text>
+            </svg>
+            <!-- Behavior empty -->
+            <svg v-else viewBox="0 0 160 160" class="w-full h-full">
+              <defs>
+                <linearGradient id="behaveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #a855f7; stop-opacity:0.15"/>
+                  <stop offset="100%" style="stop-color: #ec4899; stop-opacity:0.08"/>
+                </linearGradient>
+              </defs>
+              <circle cx="80" cy="75" r="55" fill="url(#behaveGrad)" stroke="#c084fc" stroke-width="2" stroke-dasharray="8,4"/>
+              <circle cx="80" cy="72" r="20" fill="#f3e8ff" stroke="#a855f7" stroke-width="2"/>
+              <text x="80" y="68" text-anchor="middle" font-size="28" fill="#a855f7">🐕</text>
+              <text x="80" y="135" text-anchor="middle" font-size="11" fill="#94a3b8">什么也没做…</text>
+            </svg>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-surface-700">暂无{{ TAB_LABELS[activeTab] }}记录</p>
+            <p class="text-sm text-surface-400 mt-1">让每一天都被好好记录。</p>
+          </div>
+          <!-- Step guide -->
+          <div class="flex items-center justify-center gap-2 text-xs text-surface-400 pt-2">
+            <span class="bg-surface-100 rounded-full w-5 h-5 flex items-center justify-center font-bold text-surface-500">1</span>
+            <span>选择宠物</span>
+            <span class="text-surface-300">→</span>
+            <span class="bg-surface-100 rounded-full w-5 h-5 flex items-center justify-center font-bold text-surface-500">2</span>
+            <span>选日期范围</span>
+            <span class="text-surface-300">→</span>
+            <span class="bg-surface-100 rounded-full w-5 h-5 flex items-center justify-center font-bold text-surface-500">3</span>
+            <span>填上方表单</span>
+          </div>
+        </div>
       </div>
 
       <!-- ── Today's Records (all tabs) ──────────────────────────────────── -->
@@ -553,8 +690,21 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
           <article
             v-for="record in todayRecords"
             :key="record.id"
-            class="glass-card p-5 group relative border-l-4 border-primary-400"
+            class="glass-card p-5 group relative border-l-4"
+            :class="activeTab === 'feeding' ? 'border-l-primary-400' : activeTab === 'excretion' ? 'border-l-amber-400' : 'border-l-purple-400'"
           >
+            <!-- Top row: icon + time + source badge -->
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-2xl leading-none">{{ recordIcon(record) }}</span>
+              <span
+                class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                :class="record.source === 'quick_checkin'
+                  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                  : 'bg-surface-100 text-surface-400 border border-surface-200'"
+              >
+                {{ sourceBadge(record.source) }}
+              </span>
+            </div>
             <p class="text-xs text-surface-400 mb-2">
               {{ new Date(record.recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}
             </p>
@@ -570,9 +720,10 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
             <template v-else>
               <p class="text-lg font-bold text-surface-900">{{ behaviorDetail(record as BehaviorRecord) }}</p>
             </template>
-            <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
+            <p v-if="record.notes" class="mt-1 text-sm text-surface-500 line-clamp-2">{{ record.notes }}</p>
             <div class="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
               <button class="text-xs px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors" @click="openEdit(record)">编辑</button>
+              <button class="text-xs px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors" @click="copyRecord(record)">复制</button>
               <button class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors" @click="confirmDelete(record)">删除</button>
             </div>
           </article>
@@ -584,32 +735,46 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <article
           v-for="record in records"
           :key="record.id"
-          class="glass-card p-5 group relative"
+          class="glass-card p-5 group relative border-l-4"
+          :class="activeTab === 'feeding' ? 'border-l-primary-300' : activeTab === 'excretion' ? 'border-l-amber-300' : 'border-l-purple-300'"
         >
+          <!-- Top row -->
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-2xl leading-none">{{ recordIcon(record) }}</span>
+            <span
+              class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              :class="record.source === 'quick_checkin'
+                ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                : 'bg-surface-100 text-surface-400 border border-surface-200'"
+            >
+              {{ sourceBadge(record.source) }}
+            </span>
+          </div>
           <!-- Time -->
           <p class="text-xs text-surface-400 mb-2">{{ formatTime(record.recorded_at) }}</p>
 
           <!-- Feeding card -->
           <template v-if="activeTab === 'feeding'">
             <p class="text-lg font-bold text-surface-900">{{ feedingDetail(record as FeedingRecord) }}</p>
-            <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
+            <p v-if="record.notes" class="mt-1 text-sm text-surface-500 line-clamp-2">{{ record.notes }}</p>
           </template>
 
           <!-- Excretion card -->
           <template v-else-if="activeTab === 'excretion'">
             <p class="text-lg font-bold text-surface-900">{{ excretionDetail(record as ExcretionRecord) }}</p>
-            <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
+            <p v-if="record.notes" class="mt-1 text-sm text-surface-500 line-clamp-2">{{ record.notes }}</p>
           </template>
 
           <!-- Behavior card -->
           <template v-else>
             <p class="text-lg font-bold text-surface-900">{{ behaviorDetail(record as BehaviorRecord) }}</p>
-            <p v-if="record.notes" class="mt-1 text-sm text-surface-500">{{ record.notes }}</p>
+            <p v-if="record.notes" class="mt-1 text-sm text-surface-500 line-clamp-2">{{ record.notes }}</p>
           </template>
 
           <!-- Actions -->
           <div class="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
             <button class="text-xs px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors" @click="openEdit(record)">编辑</button>
+            <button class="text-xs px-3 py-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors" @click="copyRecord(record)">复制</button>
             <button class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors" @click="confirmDelete(record)">删除</button>
           </div>
         </article>
