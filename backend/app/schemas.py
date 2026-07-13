@@ -90,8 +90,52 @@ class BehaviorCreate(RecordBase):
     mood: str | None = Field(default=None, max_length=50)
 
 
-class RecordResponse(ORMModel):
+class FeedingRecordResponse(ORMModel):
     id: str
     pet_id: str
     recorded_at: datetime
+    food_type: str
+    amount: float | None
+    source: str
     notes: str | None
+
+
+class FeedingUpdate(BaseModel):
+    food_type: str | None = Field(default=None, min_length=1, max_length=100)
+    amount: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+    recorded_at: datetime | None = None
+
+
+class ExcretionRecordResponse(ORMModel):
+    id: str
+    pet_id: str
+    recorded_at: datetime
+    type: str
+    consistency: str | None
+    notes: str | None
+
+
+class ExcretionUpdate(BaseModel):
+    type: str | None = Field(default=None, min_length=1, max_length=30)
+    consistency: str | None = Field(default=None, max_length=30)
+    notes: str | None = None
+    recorded_at: datetime | None = None
+
+
+class BehaviorRecordResponse(ORMModel):
+    id: str
+    pet_id: str
+    recorded_at: datetime
+    behavior_type: str
+    duration_minutes: int | None
+    mood: str | None
+    notes: str | None
+
+
+class BehaviorUpdate(BaseModel):
+    behavior_type: str | None = Field(default=None, min_length=1, max_length=100)
+    duration_minutes: int | None = Field(default=None, ge=0)
+    mood: str | None = Field(default=None, max_length=50)
+    notes: str | None = None
+    recorded_at: datetime | None = None

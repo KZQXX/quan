@@ -26,6 +26,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/records',
+      name: 'records',
+      component: () => import('@/views/RecordCenterPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('@/views/NotFoundPage.vue'),

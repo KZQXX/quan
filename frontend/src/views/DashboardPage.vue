@@ -61,7 +61,9 @@ onMounted(refresh)
     <header class="bg-white/80 backdrop-blur-xl border-b border-surface-200 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <RouterLink to="/" class="flex items-center gap-2"><span class="text-2xl">🐾</span><span class="text-lg font-bold text-primary-600">Pet Tracker</span></RouterLink>
-        <div class="flex items-center gap-3 text-sm text-surface-500"><span>{{ auth.user?.display_name || auth.user?.email }}</span><button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button></div>
+        <div class="flex items-center gap-4 text-sm text-surface-500">
+          <RouterLink to="/records" class="hover:text-primary-600 transition-colors">记录中心</RouterLink>
+          <span>{{ auth.user?.display_name || auth.user?.email }}</span><button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button></div>
       </div>
     </header>
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
