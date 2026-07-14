@@ -40,4 +40,8 @@ async def test_authenticated_pet_journey():
         )
         assert feeding.status_code == 201
         dashboard = await client.get("/api/dashboard", headers=headers)
-        assert dashboard.json() == {"pets": 1, "feedings": 1, "excretions": 0, "behaviors": 0}
+        data = dashboard.json()
+        assert data["pets"] == 1
+        assert data["feedings"] == 1
+        assert data["excretions"] == 0
+        assert data["behaviors"] == 0

@@ -1,6 +1,7 @@
 """Authenticated REST endpoints for the Pet Tracker MVP."""
 
 from datetime import UTC
+from datetime import date
 from datetime import datetime
 from typing import Annotated
 from typing import Any
@@ -25,6 +26,7 @@ from app.core.security import create_access_token
 from app.core.security import decode_access_token
 from app.core.security import hash_password
 from app.core.security import verify_password
+from app.models.daily_stats import DailyStats
 from app.models.notification import Notification
 from app.models.pet import Pet
 from app.models.record import BehaviorRecord
@@ -35,6 +37,8 @@ from app.models.user import User
 from app.schemas import BehaviorCreate
 from app.schemas import BehaviorRecordResponse
 from app.schemas import BehaviorUpdate
+from app.schemas import DailyStatsResponse
+from app.schemas import DashboardResponse
 from app.schemas import ExcretionCreate
 from app.schemas import ExcretionRecordResponse
 from app.schemas import ExcretionUpdate
@@ -54,6 +58,8 @@ from app.schemas import ReminderResponse
 from app.schemas import ReminderUpdate
 from app.schemas import TokenResponse
 from app.schemas import UserResponse
+from app.services.stats_service import aggregate_daily_stats
+from app.services.stats_service import get_daily_stats
 from app.shared.database import get_db
 
 router = APIRouter(prefix="/api")
@@ -416,8 +422,8 @@ async def delete_behavior(pet_id: str, record_id: str, user: CurrentUser, db: DB
     await db.commit()
 
 
-@router.get("/dashboard", tags=["Dashboard"])
-async def dashboard(user: CurrentUser, db: DB) -> dict[str, int]:
+@router.get("/dashboard", response_model=DashboardResponse, tags=["Dashboard"])
+async def dashboard(user: CurrentUser, db: DB) -> dict[str, Any]:
     pet_ids = select(Pet.id).where(Pet.user_id == user.id)
 
     async def count(model: type[RecordModel]) -> int:
@@ -428,6 +434,10 @@ async def dashboard(user: CurrentUser, db: DB) -> dict[str, int]:
             or 0
         )
 
+    # Fetch today's aggregated stats
+    today_str = date.today().isoformat()
+    today_stats = await get_daily_stats(db, user.id, start_date=today_str, end_date=today_str)
+
     return {
         "pets": int(
             await db.scalar(select(func.count()).select_from(Pet).where(Pet.user_id == user.id))
@@ -436,6 +446,7 @@ async def dashboard(user: CurrentUser, db: DB) -> dict[str, int]:
         "feedings": await count(FeedingRecord),
         "excretions": await count(ExcretionRecord),
         "behaviors": await count(BehaviorRecord),
+        "today_stats": today_stats,
     }
 
 
@@ -588,3 +599,29 @@ async def update_notification_preferences(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+# ── Statistics ─────────────────────────────────────────────────────────────
+
+
+@router.get("/stats/daily", response_model=list[DailyStatsResponse], tags=["Statistics"])
+async def daily_stats(
+    user: CurrentUser,
+    db: DB,
+    pet_id: Annotated[str | None, Query()] = None,
+    start_date: Annotated[str | None, Query()] = None,
+    end_date: Annotated[str | None, Query()] = None,
+) -> list[DailyStats]:
+    return await get_daily_stats(db, user.id, pet_id=pet_id, start_date=start_date, end_date=end_date)
+
+
+@router.post("/stats/aggregate", tags=["Statistics"])
+async def trigger_aggregation(
+    user: CurrentUser,
+    db: DB,
+    target_date: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    """Manually trigger daily stats aggregation (defaults to today)."""
+    parsed_date = date.fromisoformat(target_date) if target_date else date.today()
+    count = await aggregate_daily_stats(db, target_date=parsed_date)
+    return {"aggregated": count, "date": parsed_date.isoformat()}

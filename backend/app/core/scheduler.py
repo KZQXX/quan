@@ -9,6 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import settings
 from app.services.notification_service import process_due_reminders
+from app.services.stats_service import aggregate_daily_stats
 from app.shared.database import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,19 @@ class ReminderScheduler:
             coalesce=True,  # skip missed runs
             max_instances=1,
         )
+        # Daily stats aggregation at 00:05 UTC
+        self.scheduler.add_job(
+            self._aggregate_stats,
+            "cron",
+            hour=0,
+            minute=5,
+            id="aggregate_daily_stats",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
         self.scheduler.start()
-        logger.info("APScheduler started — checking reminders every 1 minute")
+        logger.info("APScheduler started — checking reminders every 1 min, daily stats at 00:05 UTC")
 
     async def shutdown(self) -> None:
         """Gracefully shut down the scheduler."""
@@ -54,6 +66,19 @@ class ReminderScheduler:
                     logger.info("Reminder check: %d notifications created", processed)
         except Exception:
             logger.exception("Reminder check failed")
+
+    async def _aggregate_stats(self) -> None:
+        """Aggregate daily stats for all pets (runs at midnight)."""
+        from datetime import date
+        from datetime import timedelta
+
+        try:
+            yesterday = date.today() - timedelta(days=1)
+            async with async_session_factory() as session:
+                count = await aggregate_daily_stats(session, target_date=yesterday)
+                logger.info("Daily stats aggregated: %d pet(s) for %s", count, yesterday.isoformat())
+        except Exception:
+            logger.exception("Daily stats aggregation failed")
 
 
 reminder_scheduler = ReminderScheduler()

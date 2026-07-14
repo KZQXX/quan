@@ -197,3 +197,24 @@ class NotificationResponse(ORMModel):
 class NotificationPreferenceUpdate(BaseModel):
     notify_email: bool | None = None
     webhook_url: str | None = Field(default=None, max_length=500)
+
+
+# ── Daily Stats Schemas ────────────────────────────────────────────────────
+
+
+class DailyStatsResponse(ORMModel):
+    id: str
+    pet_id: str
+    date: str
+    feeding_count: int
+    excretion_count: int
+    behavior_count: int
+    total_duration_minutes: int
+
+
+class DashboardResponse(BaseModel):
+    pets: int
+    feedings: int
+    excretions: int
+    behaviors: int
+    today_stats: list[DailyStatsResponse]

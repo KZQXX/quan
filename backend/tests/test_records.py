@@ -259,7 +259,11 @@ async def test_cross_user_isolation():
 
         # Dashboard only counts own data
         dash = await client.get("/api/dashboard", headers=headers_b)
-        assert dash.json() == {"pets": 1, "feedings": 1, "excretions": 0, "behaviors": 0}
+        data_b = dash.json()
+        assert data_b["pets"] == 1
+        assert data_b["feedings"] == 1
+        assert data_b["excretions"] == 0
+        assert data_b["behaviors"] == 0
 
 
 # ── Validation (422) ─────────────────────────────────────────────────────────
@@ -438,7 +442,11 @@ async def test_dashboard_counts_are_accurate():
         )
 
         dash = await client.get("/api/dashboard", headers=headers)
-        assert dash.json() == {"pets": 1, "feedings": 2, "excretions": 3, "behaviors": 1}
+        data = dash.json()
+        assert data["pets"] == 1
+        assert data["feedings"] == 2
+        assert data["excretions"] == 3
+        assert data["behaviors"] == 1
 
 
 # ── 404 for non-existent record id ───────────────────────────────────────────
