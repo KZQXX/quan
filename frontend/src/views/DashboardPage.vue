@@ -84,6 +84,7 @@ onMounted(refresh)
         <div class="flex items-center gap-4 text-sm text-surface-500">
           <RouterLink to="/records" class="hover:text-primary-600 transition-colors">记录中心</RouterLink>
           <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
+          <RouterLink to="/stats" class="hover:text-primary-600 transition-colors">统计</RouterLink>
           <span>{{ auth.user?.display_name || auth.user?.email }}</span><button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button></div>
       </div>
     </header>
