@@ -217,4 +217,6 @@ class DashboardResponse(BaseModel):
     feedings: int
     excretions: int
     behaviors: int
+    reminders: int
+    unread_notifications: int
     today_stats: list[DailyStatsResponse]

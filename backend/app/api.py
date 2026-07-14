@@ -438,6 +438,25 @@ async def dashboard(user: CurrentUser, db: DB) -> dict[str, Any]:
     today_str = date.today().isoformat()
     today_stats = await get_daily_stats(db, user.id, start_date=today_str, end_date=today_str)
 
+    # Count active reminders and unread notifications
+    reminder_count = int(
+        await db.scalar(
+            select(func.count()).select_from(Reminder).where(
+                Reminder.user_id == user.id, Reminder.enabled == True  # noqa: E712
+            )
+        )
+        or 0
+    )
+    unread_count_val = int(
+        await db.scalar(
+            select(func.count()).select_from(Notification).where(
+                Notification.user_id == user.id,
+                Notification.is_read == False,  # noqa: E712
+            )
+        )
+        or 0
+    )
+
     return {
         "pets": int(
             await db.scalar(select(func.count()).select_from(Pet).where(Pet.user_id == user.id))
@@ -446,6 +465,8 @@ async def dashboard(user: CurrentUser, db: DB) -> dict[str, Any]:
         "feedings": await count(FeedingRecord),
         "excretions": await count(ExcretionRecord),
         "behaviors": await count(BehaviorRecord),
+        "reminders": reminder_count,
+        "unread_notifications": unread_count_val,
         "today_stats": today_stats,
     }
 
