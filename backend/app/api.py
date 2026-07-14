@@ -1,5 +1,7 @@
 """Authenticated REST endpoints for the Pet Tracker MVP."""
 
+import csv
+import io
 from datetime import UTC
 from datetime import date
 from datetime import datetime
@@ -11,6 +13,7 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import Query
 from fastapi import status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.security import HTTPBearer
 from pydantic import AwareDatetime
@@ -646,3 +649,104 @@ async def trigger_aggregation(
     parsed_date = date.fromisoformat(target_date) if target_date else date.today()
     count = await aggregate_daily_stats(db, target_date=parsed_date)
     return {"aggregated": count, "date": parsed_date.isoformat()}
+
+
+@router.get("/stats/report", tags=["Statistics"])
+async def stats_report(
+    user: CurrentUser,
+    db: DB,
+    pet_id: Annotated[str | None, Query()] = None,
+    start_date: Annotated[str | None, Query()] = None,
+    end_date: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    """Return aggregated report data for the given date range."""
+    stats = await get_daily_stats(
+        db, user.id, pet_id=pet_id, start_date=start_date, end_date=end_date,
+    )
+
+    # Fetch pet names for display
+    pet_ids = list({s.pet_id for s in stats})
+    pet_map: dict[str, str] = {}
+    if pet_ids:
+        rows = (await db.execute(
+            select(Pet.id, Pet.name).where(Pet.id.in_(pet_ids))
+        )).all()
+        pet_map = {r[0]: r[1] for r in rows}
+
+    # Aggregate totals
+    totals = {"feeding_count": 0, "excretion_count": 0, "behavior_count": 0, "total_duration_minutes": 0}
+    days = len(stats)
+    per_pet: dict[str, dict] = {}
+    for s in stats:
+        totals["feeding_count"] += s.feeding_count
+        totals["excretion_count"] += s.excretion_count
+        totals["behavior_count"] += s.behavior_count
+        totals["total_duration_minutes"] += s.total_duration_minutes
+        pid = s.pet_id
+        if pid not in per_pet:
+            per_pet[pid] = {
+                "pet_id": pid,
+                "pet_name": pet_map.get(pid, "Unknown"),
+                "feeding_count": 0,
+                "excretion_count": 0,
+                "behavior_count": 0,
+                "total_duration_minutes": 0,
+                "days_tracked": 0,
+            }
+        p = per_pet[pid]
+        p["feeding_count"] += s.feeding_count
+        p["excretion_count"] += s.excretion_count
+        p["behavior_count"] += s.behavior_count
+        p["total_duration_minutes"] += s.total_duration_minutes
+        p["days_tracked"] += 1
+
+    return {
+        "date_range": {"start": start_date, "end": end_date},
+        "days": days,
+        "totals": totals,
+        "per_pet": sorted(per_pet.values(), key=lambda x: x["pet_name"]),
+    }
+
+
+@router.get("/stats/export", tags=["Statistics"])
+async def export_csv(
+    user: CurrentUser,
+    db: DB,
+    pet_id: Annotated[str | None, Query()] = None,
+    start_date: Annotated[str | None, Query()] = None,
+    end_date: Annotated[str | None, Query()] = None,
+) -> StreamingResponse:
+    """Export daily stats as CSV file."""
+    stats = await get_daily_stats(
+        db, user.id, pet_id=pet_id, start_date=start_date, end_date=end_date,
+    )
+
+    # Fetch pet names
+    pet_ids = list({s.pet_id for s in stats})
+    pet_map: dict[str, str] = {}
+    if pet_ids:
+        rows = (await db.execute(
+            select(Pet.id, Pet.name).where(Pet.id.in_(pet_ids))
+        )).all()
+        pet_map = {r[0]: r[1] for r in rows}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["日期", "宠物", "喂食次数", "排便次数", "行为次数", "行为总时长(分钟)"])
+    for s in stats:
+        writer.writerow([
+            s.date,
+            pet_map.get(s.pet_id, s.pet_id),
+            s.feeding_count,
+            s.excretion_count,
+            s.behavior_count,
+            s.total_duration_minutes,
+        ])
+
+    output.seek(0)
+    filename = f"pet_stats_{start_date or 'all'}_{end_date or 'all'}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

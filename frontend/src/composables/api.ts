@@ -93,3 +93,43 @@ export const preferencesApi = {
   update: (data: { notify_email?: boolean; webhook_url?: string | null }) =>
     api.patch('/auth/preferences', data),
 }
+
+// ── Statistics API ─────────────────────────────────────────────────────────
+
+export interface DailyStat {
+  pet_id: string
+  date: string
+  feeding_count: number
+  excretion_count: number
+  behavior_count: number
+  total_duration_minutes: number
+}
+
+export interface StatsReport {
+  date_range: { start: string | null; end: string | null }
+  days: number
+  totals: { feeding_count: number; excretion_count: number; behavior_count: number; total_duration_minutes: number }
+  per_pet: Array<{
+    pet_id: string
+    pet_name: string
+    feeding_count: number
+    excretion_count: number
+    behavior_count: number
+    total_duration_minutes: number
+    days_tracked: number
+  }>
+}
+
+export const statsApi = {
+  daily: (params?: { pet_id?: string; start_date?: string; end_date?: string }) =>
+    api.get<DailyStat[]>('/stats/daily', { params }),
+  report: (params?: { pet_id?: string; start_date?: string; end_date?: string }) =>
+    api.get<StatsReport>('/stats/report', { params }),
+  exportCsvUrl: (params?: { pet_id?: string; start_date?: string; end_date?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.pet_id) qs.set('pet_id', params.pet_id)
+    if (params?.start_date) qs.set('start_date', params.start_date)
+    if (params?.end_date) qs.set('end_date', params.end_date)
+    return `/api/stats/export?${qs.toString()}`
+  },
+}

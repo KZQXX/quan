@@ -390,6 +390,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
           <RouterLink to="/dashboard" class="hover:text-primary-600 transition-colors">控制面板</RouterLink>
           <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
           <RouterLink to="/stats" class="hover:text-primary-600 transition-colors">统计</RouterLink>
+          <RouterLink to="/report" class="hover:text-primary-600 transition-colors">报表</RouterLink>
           <span>{{ auth.user?.display_name || auth.user?.email }}</span>
           <button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button>
         </div>
