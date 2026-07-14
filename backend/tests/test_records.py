@@ -517,3 +517,111 @@ async def test_quick_checkin_source_and_timezone_validation():
             json={"food_type": "kibble", "recorded_at": "2026-07-13T12:00:00"},
         )
         assert naive_time.status_code == 422
+
+
+# ── Stats / Report / CSV Export ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stats_daily_and_report():
+    """Create records, aggregate stats, verify daily + report endpoints."""
+    email = f"stats-{uuid4()}@test.com"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        auth = await _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {auth['token']}"}
+        pet_id = await _create_pet(client, auth["token"])
+
+        # Create records for today
+        today = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        await client.post(f"/api/pets/{pet_id}/feedings", headers=headers, json={"food_type": "kibble", "recorded_at": today})
+        await client.post(f"/api/pets/{pet_id}/feedings", headers=headers, json={"food_type": "wet", "recorded_at": today})
+        await client.post(f"/api/pets/{pet_id}/excretions", headers=headers, json={"type": "normal", "recorded_at": today})
+        await client.post(f"/api/pets/{pet_id}/behaviors", headers=headers, json={"behavior_type": "running", "duration_minutes": 30, "recorded_at": today})
+
+        # Trigger aggregation
+        agg = await client.post("/api/stats/aggregate", headers=headers)
+        assert agg.status_code == 200
+        assert agg.json()["aggregated"] >= 1
+
+        # Daily stats
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        daily = await client.get("/api/stats/daily", headers=headers, params={"start_date": today_str, "end_date": today_str})
+        assert daily.status_code == 200
+        daily_data = daily.json()
+        assert len(daily_data) >= 1
+        assert daily_data[0]["feeding_count"] == 2
+        assert daily_data[0]["excretion_count"] == 1
+        assert daily_data[0]["behavior_count"] == 1
+        assert daily_data[0]["total_duration_minutes"] == 30
+
+        # Report
+        report = await client.get("/api/stats/report", headers=headers, params={"start_date": today_str, "end_date": today_str})
+        assert report.status_code == 200
+        r = report.json()
+        assert r["days"] >= 1
+        assert r["totals"]["feeding_count"] == 2
+        assert r["totals"]["excretion_count"] == 1
+        assert len(r["per_pet"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_stats_csv_export():
+    """CSV export returns valid CSV with correct headers and data row."""
+    email = f"csv-{uuid4()}@test.com"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        auth = await _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {auth['token']}"}
+        pet_id = await _create_pet(client, auth["token"])
+
+        today = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        await client.post(f"/api/pets/{pet_id}/feedings", headers=headers, json={"food_type": "treat", "recorded_at": today})
+        await client.post("/api/stats/aggregate", headers=headers)
+
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        resp = await client.get("/api/stats/export", headers=headers, params={"start_date": today_str, "end_date": today_str})
+        assert resp.status_code == 200
+        content = resp.text
+        assert "日期,宠物,喂食次数,排便次数,行为次数,行为总时长(分钟)" in content
+        assert "1" in content  # at least one feeding
+
+
+@pytest.mark.asyncio
+async def test_stats_unauthenticated():
+    """Stats endpoints require authentication."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        assert (await client.get("/api/stats/daily")).status_code in (401, 403)
+        assert (await client.get("/api/stats/report")).status_code in (401, 403)
+        assert (await client.get("/api/stats/export")).status_code in (401, 403)
+        assert (await client.post("/api/stats/aggregate")).status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_stats_cross_user_isolation():
+    """Stats endpoints only show data for the authenticated user."""
+    email_a = f"stat-iso-a-{uuid4()}@test.com"
+    email_b = f"stat-iso-b-{uuid4()}@test.com"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        auth_a = await _register_and_login(client, email_a)
+        auth_b = await _register_and_login(client, email_b)
+        headers_a = {"Authorization": f"Bearer {auth_a['token']}"}
+        headers_b = {"Authorization": f"Bearer {auth_b['token']}"}
+        pet_a = await _create_pet(client, auth_a["token"])
+        pet_b = await _create_pet(client, auth_b["token"])
+
+        today = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        await client.post(f"/api/pets/{pet_a}/feedings", headers=headers_a, json={"food_type": "a-food", "recorded_at": today})
+        await client.post(f"/api/pets/{pet_b}/feedings", headers=headers_b, json={"food_type": "b-food", "recorded_at": today})
+        await client.post("/api/stats/aggregate", headers=headers_a)
+        await client.post("/api/stats/aggregate", headers=headers_b)
+
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+        daily_a = await client.get("/api/stats/daily", headers=headers_a, params={"start_date": today_str, "end_date": today_str})
+        daily_b = await client.get("/api/stats/daily", headers=headers_b, params={"start_date": today_str, "end_date": today_str})
+
+        # Each user sees only their own pet's data
+        a_ids = {s["pet_id"] for s in daily_a.json()}
+        b_ids = {s["pet_id"] for s in daily_b.json()}
+        assert pet_a in a_ids
+        assert pet_b not in a_ids
+        assert pet_b in b_ids
+        assert pet_a not in b_ids
