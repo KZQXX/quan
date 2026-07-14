@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import api from '@/composables/api'
 import { reminderApi, type Reminder, type ReminderCreate, type ReminderUpdate } from '@/composables/api'
 
@@ -158,6 +159,7 @@ onMounted(fetchData)
           <RouterLink to="/dashboard" class="hover:text-primary-600 transition-colors">面板</RouterLink>
           <RouterLink to="/records" class="hover:text-primary-600 transition-colors">记录中心</RouterLink>
           <RouterLink to="/reminders" class="text-primary-600 font-medium">提醒</RouterLink>
+          <ThemeToggle />
           <span>{{ auth.user?.display_name || auth.user?.email }}</span>
           <button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button>
         </div>

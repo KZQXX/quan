@@ -7,7 +7,8 @@
           <h1 class="text-2xl font-bold text-content-900 sm:text-3xl">统计报表</h1>
           <p class="mt-1 text-sm text-content-500">按时间段查看聚合数据并导出 CSV</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex items-center gap-3">
+          <ThemeToggle />
           <RouterLink to="/stats" class="rounded-lg bg-surface-100 px-4 py-2 text-sm font-medium text-content-600 transition-colors hover:bg-surface-200">
             趋势图表
           </RouterLink>
@@ -187,6 +188,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import api, { statsApi, type StatsReport } from '@/composables/api'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 interface Pet {
   id: string

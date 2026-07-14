@@ -3,11 +3,41 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-bg-base: 248 250 252;
+    --color-bg-card: 255 255 255;
+    --color-text-primary: 15 23 42;
+    --color-text-secondary: 71 85 105;
+    --color-text-muted: 100 116 139;
+    --color-border: 226 232 240;
+    --color-border-light: 241 245 249;
+  }
+
+  .dark {
+    --color-bg-base: 15 23 42;
+    --color-bg-card: 30 41 59;
+    --color-text-primary: 248 250 252;
+    --color-text-secondary: 203 213 225;
+    --color-text-muted: 148 163 184;
+    --color-border: 51 65 85;
+    --color-border-light: 30 41 59;
+  }
+
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: rgb(var(--color-bg-base));
+    color: rgb(var(--color-text-primary));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Smooth transition for all themed elements */
+  *,
+  *::before,
+  *::after {
+    transition-property: color, background-color, border-color, box-shadow;
+    transition-duration: 0.3s;
+    transition-timing-function: ease;
   }
 }
 
@@ -20,6 +50,11 @@
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
   }
+  .dark .glass-card {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  }
 
   .btn-primary {
     display: inline-flex;
@@ -30,17 +65,18 @@
     color: white;
     font-weight: 600;
     border-radius: 12px;
-    transition: all 0.2s ease-out;
+    box-shadow: 0 2px 8px rgba(192, 38, 211, 0.25);
   }
   .btn-primary:hover {
     background-color: #a21caf;
+    box-shadow: 0 4px 16px rgba(192, 38, 211, 0.35);
+    transform: translateY(-1px);
   }
   .btn-primary:active {
     transform: scale(0.97);
   }
   .btn-primary:focus {
     outline: none;
-    box-shadow: 0 0 0 2px #d946ef;
     box-shadow: 0 0 0 2px #d946ef, 0 0 0 4px rgba(217, 70, 239, 0.2);
   }
 
@@ -52,19 +88,80 @@
     color: #334155;
     font-weight: 500;
     border-radius: 12px;
-    transition: all 0.2s ease-out;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .dark .btn-ghost {
+    color: #cbd5e1;
   }
   .btn-ghost:hover {
     background-color: #f1f5f9;
   }
+  .dark .btn-ghost:hover {
+    background-color: rgba(51, 65, 85, 0.6);
+  }
   .btn-ghost:active {
     transform: scale(0.97);
+  }
+
+  /* Magnetic hover utility */
+  .magnetic-hover {
+    transform: translateY(0);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .magnetic-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  }
+  .dark .magnetic-hover:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Card hover lift */
+  .card-lift {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  }
+  .dark .card-lift:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
   }
 }
 
 /* Premium gradient backgrounds */
 .gradient-hero {
   background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 30%, #f0abfc 60%, #e879f9 100%);
+}
+.dark .gradient-hero {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4c1d95 60%, #701a75 100%);
+}
+
+/* Dark-specific overrides for surface classes */
+.dark .bg-surface-50 { background-color: rgb(15 23 42) !important; }
+.dark .bg-surface-100 { background-color: rgb(30 41 59) !important; }
+.dark .bg-white { background-color: rgb(30 41 59) !important; }
+.dark .bg-white\/80 { background-color: rgba(30, 41, 59, 0.8) !important; }
+.dark .text-surface-900 { color: rgb(248 250 252) !important; }
+.dark .text-surface-700 { color: rgb(203 213 225) !important; }
+.dark .text-surface-600 { color: rgb(148 163 184) !important; }
+.dark .text-surface-500 { color: rgb(100 116 139) !important; }
+.dark .border-surface-200 { border-color: rgb(51 65 85) !important; }
+.dark .border-surface-100 { border-color: rgba(51, 65, 85, 0.5) !important; }
+
+/* Form elements in dark mode */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: rgb(30 41 59) !important;
+  color: rgb(248 250 252) !important;
+  border-color: rgb(51 65 85) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(100 116 139) !important;
 }
 
 /* Animations */

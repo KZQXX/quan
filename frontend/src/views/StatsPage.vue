@@ -7,6 +7,7 @@ import { GridComponent, LegendComponent, TitleComponent, TooltipComponent } from
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import { useAuthStore } from '@/stores/auth'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import api from '@/composables/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
@@ -140,6 +141,7 @@ watch([selectedPetId, rangeDays], () => loadStats())
           <RouterLink to="/records" class="hover:text-primary-600 transition-colors">记录中心</RouterLink>
           <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
           <RouterLink to="/report" class="hover:text-primary-600 transition-colors">报表</RouterLink>
+          <ThemeToggle />
           <span>{{ auth.user?.display_name || auth.user?.email }}</span>
           <button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button>
         </div>

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import api from '@/composables/api'
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -391,6 +392,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
           <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
           <RouterLink to="/stats" class="hover:text-primary-600 transition-colors">统计</RouterLink>
           <RouterLink to="/report" class="hover:text-primary-600 transition-colors">报表</RouterLink>
+          <ThemeToggle />
           <span>{{ auth.user?.display_name || auth.user?.email }}</span>
           <button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button>
         </div>
