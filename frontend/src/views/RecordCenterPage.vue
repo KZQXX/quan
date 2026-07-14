@@ -388,6 +388,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         </RouterLink>
         <div class="flex items-center gap-4 text-sm text-surface-500">
           <RouterLink to="/dashboard" class="hover:text-primary-600 transition-colors">控制面板</RouterLink>
+          <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
           <span>{{ auth.user?.display_name || auth.user?.email }}</span>
           <button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button>
         </div>
@@ -433,7 +434,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
           <span>🍽️</span> 记录喂食
         </h2>
-        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createFeedingRecord">
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createFeedingRecord()">
           <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
             食物类型
             <select v-model="newFoodType" class="rounded-xl border-surface-200 text-sm" :class="{ '!border-red-400': formErrors.food_type }" @change="clearFormErrors">
@@ -482,7 +483,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
           <span>💩</span> 记录排便
         </h2>
-        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createExcretionRecord">
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createExcretionRecord()">
           <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
             类型
             <select v-model="newExcretionType" class="rounded-xl border-surface-200 text-sm">
@@ -524,7 +525,7 @@ watch([selectedPetId, activeTab, startDate, endDate], () => {
         <h2 class="text-xl font-bold text-surface-900 flex items-center gap-2">
           <span>🐕</span> 记录行为
         </h2>
-        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createBehaviorRecord">
+        <form class="flex flex-wrap gap-3 items-end" @submit.prevent="createBehaviorRecord()">
           <label class="flex flex-col gap-1 text-xs text-surface-500 min-w-[120px]">
             行为类型
             <select v-model="newBehaviorType" class="rounded-xl border-surface-200 text-sm">

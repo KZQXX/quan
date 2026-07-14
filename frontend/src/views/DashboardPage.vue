@@ -64,6 +64,7 @@ onMounted(refresh)
         <RouterLink to="/" class="flex items-center gap-2"><span class="text-2xl">🐾</span><span class="text-lg font-bold text-primary-600">Pet Tracker</span></RouterLink>
         <div class="flex items-center gap-4 text-sm text-surface-500">
           <RouterLink to="/records" class="hover:text-primary-600 transition-colors">记录中心</RouterLink>
+          <RouterLink to="/reminders" class="hover:text-primary-600 transition-colors">提醒</RouterLink>
           <span>{{ auth.user?.display_name || auth.user?.email }}</span><button class="btn-ghost !px-3 !py-2" @click="auth.logout()">退出</button></div>
       </div>
     </header>
