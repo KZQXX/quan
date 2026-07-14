@@ -17,6 +17,7 @@ from app.core.logging import logger
 from app.core.logging import setup_logging
 from app.core.middleware import global_error_handler
 from app.core.middleware import setup_middleware
+from app.core.scheduler import reminder_scheduler
 from app.shared.database import async_session_factory
 from app.shared.database import engine
 
@@ -33,11 +34,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         f"Starting {settings.app_name} v{settings.app_version}",
         debug=settings.debug,
     )
+    await reminder_scheduler.start()
 
     yield  # Application runs here
 
     # Shutdown (graceful)
     logger.info("Shutting down gracefully...")
+    await reminder_scheduler.shutdown()
     await engine.dispose()
 
 

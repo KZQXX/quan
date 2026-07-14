@@ -24,13 +24,13 @@ class PetRecordMixin:
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
 
 
 class FeedingRecord(Base, UUIDMixin, TimestampMixin, PetRecordMixin):
     __tablename__ = "feeding_records"
     food_type: Mapped[str] = mapped_column(String(100), nullable=False)
     amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

@@ -4,9 +4,9 @@ Covers: Feeding, Excretion, Behavior CRUD cycles; unauthorised / cross-user
         isolation; field validation; date filtering; ownership enforcement.
 """
 
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from uuid import uuid4
 
 import pytest
@@ -15,8 +15,8 @@ from httpx import AsyncClient
 
 from app.main import app
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 async def _register_and_login(client: AsyncClient, email: str) -> dict[str, str]:
     """Register a new user, log in, return {token, display_name}."""
@@ -24,9 +24,7 @@ async def _register_and_login(client: AsyncClient, email: str) -> dict[str, str]
         "/api/auth/register",
         json={"email": email, "password": "safe12345", "display_name": "Tester"},
     )
-    resp = await client.post(
-        "/api/auth/login", json={"email": email, "password": "safe12345"}
-    )
+    resp = await client.post("/api/auth/login", json={"email": email, "password": "safe12345"})
     data = resp.json()
     return {"token": data["access_token"], "display_name": data["user"]["display_name"]}
 
@@ -42,6 +40,7 @@ async def _create_pet(client: AsyncClient, token: str, name: str = "Mochi") -> s
 
 
 # ── Feeding CRUD cycle ───────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_feeding_full_crud_cycle():
@@ -67,9 +66,7 @@ async def test_feeding_full_crud_cycle():
         assert body["pet_id"] == pet_id
 
         # Read by id
-        get_one = await client.get(
-            f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers
-        )
+        get_one = await client.get(f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers)
         assert get_one.status_code == 200
         assert get_one.json()["id"] == record_id
 
@@ -91,15 +88,11 @@ async def test_feeding_full_crud_cycle():
         assert patch.json()["food_type"] == "dry food"
 
         # Delete
-        delete = await client.delete(
-            f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers
-        )
+        delete = await client.delete(f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers)
         assert delete.status_code == 204
 
         # Verify gone
-        verify = await client.get(
-            f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers
-        )
+        verify = await client.get(f"/api/pets/{pet_id}/feedings/{record_id}", headers=headers)
         assert verify.status_code == 404
 
         # Dashboard reflects deletion
@@ -108,6 +101,7 @@ async def test_feeding_full_crud_cycle():
 
 
 # ── Excretion CRUD cycle ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_excretion_full_crud_cycle():
@@ -136,16 +130,13 @@ async def test_excretion_full_crud_cycle():
         assert patch.json()["type"] == "normal"
 
         # Delete
-        await client.delete(
-            f"/api/pets/{pet_id}/excretions/{record_id}", headers=headers
-        )
-        verify = await client.get(
-            f"/api/pets/{pet_id}/excretions/{record_id}", headers=headers
-        )
+        await client.delete(f"/api/pets/{pet_id}/excretions/{record_id}", headers=headers)
+        verify = await client.get(f"/api/pets/{pet_id}/excretions/{record_id}", headers=headers)
         assert verify.status_code == 404
 
 
 # ── Behavior CRUD cycle ──────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_behavior_full_crud_cycle():
@@ -179,16 +170,13 @@ async def test_behavior_full_crud_cycle():
         assert patch.json()["behavior_type"] == "playing"
 
         # Delete
-        await client.delete(
-            f"/api/pets/{pet_id}/behaviors/{record_id}", headers=headers
-        )
-        verify = await client.get(
-            f"/api/pets/{pet_id}/behaviors/{record_id}", headers=headers
-        )
+        await client.delete(f"/api/pets/{pet_id}/behaviors/{record_id}", headers=headers)
+        verify = await client.get(f"/api/pets/{pet_id}/behaviors/{record_id}", headers=headers)
         assert verify.status_code == 404
 
 
 # ── Unauthorised access (no token) ───────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_records_reject_unauthenticated_access():
@@ -222,6 +210,7 @@ async def test_records_reject_unauthenticated_access():
 
 
 # ── Cross-user isolation ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_cross_user_isolation():
@@ -274,6 +263,7 @@ async def test_cross_user_isolation():
 
 
 # ── Validation (422) ─────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_validation_errors():
@@ -332,6 +322,7 @@ async def test_validation_errors():
 
 # ── Date-range filtering ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_date_range_filtering():
     email = f"datefilter-{uuid4()}@test.com"
@@ -340,7 +331,7 @@ async def test_date_range_filtering():
         headers = {"Authorization": f"Bearer {auth['token']}"}
         pet_id = await _create_pet(client, auth["token"])
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Record from 7 days ago
         await client.post(
@@ -410,6 +401,7 @@ async def test_date_range_filtering():
 
 # ── Multiple records and dashboard counts ────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_dashboard_counts_are_accurate():
     email = f"dashcounts-{uuid4()}@test.com"
@@ -451,6 +443,7 @@ async def test_dashboard_counts_are_accurate():
 
 # ── 404 for non-existent record id ───────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_nonexistent_record_returns_404():
     email = f"nonexistent-{uuid4()}@test.com"
@@ -474,6 +467,7 @@ async def test_nonexistent_record_returns_404():
 
 # ── Recorded_at override ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_custom_recorded_at():
     email = f"customtime-{uuid4()}@test.com"
@@ -491,3 +485,27 @@ async def test_custom_recorded_at():
         assert resp.status_code == 201
         # ISO 8601 comparison (both are in UTC)
         assert resp.json()["recorded_at"].startswith("2025-12-25T08:30:00")
+
+
+@pytest.mark.asyncio
+async def test_quick_checkin_source_and_timezone_validation():
+    email = f"source-{uuid4()}@test.com"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        auth = await _register_and_login(client, email)
+        headers = {"Authorization": f"Bearer {auth['token']}"}
+        pet_id = await _create_pet(client, auth["token"])
+
+        quick = await client.post(
+            f"/api/pets/{pet_id}/behaviors",
+            headers=headers,
+            json={"behavior_type": "playing", "source": "quick_checkin"},
+        )
+        assert quick.status_code == 201
+        assert quick.json()["source"] == "quick_checkin"
+
+        naive_time = await client.post(
+            f"/api/pets/{pet_id}/feedings",
+            headers=headers,
+            json={"food_type": "kibble", "recorded_at": "2026-07-13T12:00:00"},
+        )
+        assert naive_time.status_code == 422

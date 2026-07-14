@@ -60,11 +60,7 @@ async def global_error_handler(request: Request, exc: Exception) -> JSONResponse
         )
 
     # Unexpected / programming error
-    logger.error(
-        f"Unhandled exception: {exc}",
-        error=str(exc),
-        exc_info=True,
-    )
+    logger.opt(exception=exc).error("Unhandled exception")
     return JSONResponse(
         status_code=500,
         content={

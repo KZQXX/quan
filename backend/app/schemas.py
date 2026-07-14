@@ -1,8 +1,9 @@
 """Request and response schemas for the public API."""
 
 from datetime import date
-from datetime import datetime
+from typing import Literal
 
+from pydantic import AwareDatetime
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import EmailStr
@@ -70,8 +71,9 @@ class PetResponse(ORMModel):
 
 
 class RecordBase(BaseModel):
-    recorded_at: datetime | None = None
+    recorded_at: AwareDatetime | None = None
     notes: str | None = None
+    source: Literal["manual", "quick_checkin"] = "manual"
 
 
 class FeedingCreate(RecordBase):
@@ -93,7 +95,7 @@ class BehaviorCreate(RecordBase):
 class FeedingRecordResponse(ORMModel):
     id: str
     pet_id: str
-    recorded_at: datetime
+    recorded_at: AwareDatetime
     food_type: str
     amount: float | None
     source: str
@@ -104,13 +106,14 @@ class FeedingUpdate(BaseModel):
     food_type: str | None = Field(default=None, min_length=1, max_length=100)
     amount: float | None = Field(default=None, ge=0)
     notes: str | None = None
-    recorded_at: datetime | None = None
+    recorded_at: AwareDatetime | None = None
 
 
 class ExcretionRecordResponse(ORMModel):
     id: str
     pet_id: str
-    recorded_at: datetime
+    recorded_at: AwareDatetime
+    source: str
     type: str
     consistency: str | None
     notes: str | None
@@ -120,13 +123,14 @@ class ExcretionUpdate(BaseModel):
     type: str | None = Field(default=None, min_length=1, max_length=30)
     consistency: str | None = Field(default=None, max_length=30)
     notes: str | None = None
-    recorded_at: datetime | None = None
+    recorded_at: AwareDatetime | None = None
 
 
 class BehaviorRecordResponse(ORMModel):
     id: str
     pet_id: str
-    recorded_at: datetime
+    recorded_at: AwareDatetime
+    source: str
     behavior_type: str
     duration_minutes: int | None
     mood: str | None
@@ -138,4 +142,58 @@ class BehaviorUpdate(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=0)
     mood: str | None = Field(default=None, max_length=50)
     notes: str | None = None
-    recorded_at: datetime | None = None
+    recorded_at: AwareDatetime | None = None
+
+
+# ── Reminder Schemas ──────────────────────────────────────────────────────
+
+
+class ReminderCreate(BaseModel):
+    pet_id: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    reminder_type: str = Field(default="other", max_length=50)
+    scheduled_time: str = Field(
+        pattern=r"^\d{2}:\d{2}$"
+    )  # HH:MM
+    repeat_rule: str = Field(default="none", max_length=100)
+    cron_expression: str | None = Field(default=None, max_length=100)
+    enabled: bool = True
+
+
+class ReminderUpdate(BaseModel):
+    pet_id: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    reminder_type: str | None = Field(default=None, max_length=50)
+    scheduled_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    repeat_rule: str | None = Field(default=None, max_length=100)
+    cron_expression: str | None = Field(default=None, max_length=100)
+    enabled: bool | None = None
+
+
+class ReminderResponse(ORMModel):
+    id: str
+    pet_id: str | None
+    title: str
+    reminder_type: str
+    scheduled_time: str
+    repeat_rule: str
+    cron_expression: str | None
+    enabled: bool
+    last_triggered_at: str | None
+
+
+# ── Notification Schemas ──────────────────────────────────────────────────
+
+
+class NotificationResponse(ORMModel):
+    id: str
+    type: str
+    title: str
+    message: str | None
+    is_read: bool
+    created_at_ts: str
+
+
+class NotificationPreferenceUpdate(BaseModel):
+    notify_email: bool | None = None
+    webhook_url: str | None = Field(default=None, max_length=500)

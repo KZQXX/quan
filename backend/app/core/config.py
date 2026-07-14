@@ -35,5 +35,15 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Scheduler
+    scheduler_enabled: bool = True
+
+    # SMTP (email notifications)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "pet-tracker@example.com"
+
 
 settings = Settings()

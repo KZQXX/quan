@@ -144,8 +144,8 @@ const todayRecords = computed(() => {
 // ── API helpers ─────────────────────────────────────────────────────────────
 function params() {
   const p: Record<string, string> = {}
-  if (startDate.value) p.start_date = startDate.value
-  if (endDate.value) p.end_date = endDate.value + 'T23:59:59'
+  if (startDate.value) p.start_date = new Date(`${startDate.value}T00:00:00`).toISOString()
+  if (endDate.value) p.end_date = new Date(`${endDate.value}T23:59:59.999`).toISOString()
   return p
 }
 
@@ -170,7 +170,7 @@ async function loadRecords() {
 }
 
 // ── Create feeding record ────────────────────────────────────────────────
-async function createFeedingRecord() {
+async function createFeedingRecord(source: 'manual' | 'quick_checkin' = 'manual') {
   if (!selectedPetId.value) return
   if (!validateFeeding()) return
   creating.value = true
@@ -181,6 +181,7 @@ async function createFeedingRecord() {
       food_type: newFoodType.value,
       amount: newAmount.value,
       notes: newNotes.value || undefined,
+      source,
     })
     message.value = '已记录一餐！'
     newAmount.value = null
@@ -201,11 +202,11 @@ function quickFeedCheckin() {
   else newFoodType.value = '零食'
   newAmount.value = 100
   newNotes.value = ''
-  createFeedingRecord()
+  createFeedingRecord('quick_checkin')
 }
 
 // ── Create excretion record ────────────────────────────────────────────────
-async function createExcretionRecord() {
+async function createExcretionRecord(source: 'manual' | 'quick_checkin' = 'manual') {
   if (!selectedPetId.value) return
   if (!validateExcretion()) return
   creating.value = true
@@ -216,6 +217,7 @@ async function createExcretionRecord() {
       type: newExcretionType.value,
       consistency: newConsistency.value || undefined,
       notes: newExcretionNotes.value || undefined,
+      source,
     })
     message.value = '已记录排便！'
     newConsistency.value = ''
@@ -232,11 +234,11 @@ function quickExcretionCheckin() {
   newExcretionType.value = '正常'
   newConsistency.value = ''
   newExcretionNotes.value = ''
-  createExcretionRecord()
+  createExcretionRecord('quick_checkin')
 }
 
 // ── Create behavior record ────────────────────────────────────────────────
-async function createBehaviorRecord() {
+async function createBehaviorRecord(source: 'manual' | 'quick_checkin' = 'manual') {
   if (!selectedPetId.value) return
   if (!validateBehavior()) return
   creating.value = true
@@ -248,6 +250,7 @@ async function createBehaviorRecord() {
       duration_minutes: newDurationMinutes.value,
       mood: newMood.value || undefined,
       notes: newBehaviorNotes.value || undefined,
+      source,
     })
     message.value = '已记录行为！'
     newDurationMinutes.value = null
@@ -266,7 +269,7 @@ function quickBehaviorCheckin() {
   newDurationMinutes.value = null
   newMood.value = '开心'
   newBehaviorNotes.value = ''
-  createBehaviorRecord()
+  createBehaviorRecord('quick_checkin')
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────────
@@ -287,7 +290,9 @@ async function saveEdit() {
   const body: Record<string, any> = {}
   for (const [k, v] of Object.entries(editForm.value)) {
     if (['id', 'pet_id', 'source'].includes(k)) continue
-    if (v !== editing.value[k as keyof RecordType] && v !== '') body[k] = v === '' ? null : v
+    if (v !== editing.value[k as keyof RecordType] && v !== '') {
+      body[k] = k === 'recorded_at' ? new Date(String(v)).toISOString() : v === '' ? null : v
+    }
   }
   try {
     await api.patch(`/pets/${selectedPetId.value}/${ep}/${id}`, body)

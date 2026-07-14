@@ -111,6 +111,7 @@ module = [
     "pydantic_settings.*",
     "aiosqlite.*",
     "jose.*",
+    "apscheduler.*",
 ]
 ignore_missing_imports = true
 
